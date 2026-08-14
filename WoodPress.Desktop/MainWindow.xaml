@@ -1,0 +1,143 @@
+<Window x:Class="WoodPress.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WoodPress — Orchestrateur WordPress Docker Atelier Codinflo" 
+        Height="800" Width="1240"
+        MinHeight="650" MinWidth="950"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgDark}">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- En-tête -->
+            <RowDefinition Height="Auto"/> <!-- Barre de filtres & actions -->
+            <RowDefinition Height="*"/>    <!-- Liste des projets -->
+            <RowDefinition Height="Auto"/> <!-- Barre de statut -->
+        </Grid.RowDefinitions>
+
+        <!-- EN-TÊTE AVEC LOGO OFFICIEL BRANDING -->
+        <Border Grid.Row="0" Background="{StaticResource BgHeader}" CornerRadius="12" Padding="16,14" Margin="0,0,0,20" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="Assets/icon-square-128.png" Width="36" Height="36" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="WoodPress" FontSize="22" FontWeight="Bold" Foreground="{StaticResource AccentGreen}"/>
+                        <TextBlock Text="Orchestrateur WordPress Docker &amp; Format .AZF" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnNewProject" Content="➕ Nouveau Projet" Click="BtnNewProject_Click" Background="{StaticResource AccentGreen}" Padding="14,9" Margin="0,0,8,0"/>
+                    <Button x:Name="BtnSettings" Content="⚙️ Choix IDE" Click="BtnSettings_Click" Background="#334155" Padding="12,9" Margin="0,0,8,0"/>
+                    <Button x:Name="BtnImportAzf" Content="📥 Importer .AZF" Click="BtnImportAzf_Click" Background="#8b5cf6" Padding="12,9" Margin="0,0,8,0"/>
+                    <Button x:Name="BtnRefresh" Content="🔄 Rescanner" Click="BtnRefresh_Click" Background="#3b82f6" Padding="12,9"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- BARRE DE FILTRES -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,16">
+            <RadioButton x:Name="TabAll" Content="Tous les projets" IsChecked="True" Checked="FilterTab_Checked" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Margin="0,0,20,0" VerticalAlignment="Center"/>
+            <RadioButton x:Name="TabWorkspace" Content="Workspaces Pro (G:\Workspace)" Checked="FilterTab_Checked" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Margin="0,0,20,0" VerticalAlignment="Center"/>
+            <RadioButton x:Name="TabLearning" Content="Learnspace (E:\E-Dev)" Checked="FilterTab_Checked" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- CONTENEUR DES CARTES PROJETS QUI RESPIRENT -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="ProjectsControl">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Width="{Binding RelativeSource={RelativeSource AncestorType=ScrollViewer}, Path=ActualWidth}"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Width="375" Background="{StaticResource BgCard}" CornerRadius="12" Padding="18" Margin="0,0,20,20" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+                            <StackPanel>
+                                <!-- Titre, Client & Statut Docker temps réel -->
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding ClientName}" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding ProjectName}" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#0f172a" CornerRadius="12" Padding="10,5" VerticalAlignment="Top" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+                                        <TextBlock Text="{Binding DockerStatus}" FontSize="11" FontWeight="Bold" Foreground="{Binding DockerStatusColor}"/>
+                                    </Border>
+                                </Grid>
+
+                                <!-- Métadonnées (Ports & Vraie Version WordPress) -->
+                                <Border Background="#0f172a" CornerRadius="8" Padding="10,8" Margin="0,0,0,14" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Port HTTP" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+                                            <TextBlock Text="{Binding HttpPort, StringFormat=':{0}'}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBlue}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="WordPress" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+                                            <TextBlock Text="{Binding WpVersion}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentGreen}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Chemin du projet -->
+                                <TextBlock Text="Dossier :" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+                                <TextBlock Text="{Binding ProjectDir}" FontSize="11" Foreground="#cbd5e1" TextTrimming="CharacterEllipsis" Margin="0,0,0,14" ToolTip="{Binding ProjectDir}"/>
+
+                                <!-- Actions Principales : Démarrer / Stop -->
+                                <UniformGrid Columns="2" Margin="0,0,0,6">
+                                    <Button Content="▶️ Démarrer" Tag="{Binding}" Click="BtnStart_Click" Background="{StaticResource AccentGreen}" Padding="10,8"/>
+                                    <Button Content="⏹️ Stop" Tag="{Binding}" Click="BtnStop_Click" Background="#ef4444" Padding="10,8"/>
+                                </UniformGrid>
+
+                                <!-- Accès Web (Actifs UNIQUEMENT quand le site est en ligne) -->
+                                <UniformGrid Columns="2" Margin="0,0,0,6">
+                                    <Button Content="🌐 Ouvrir Site" Tag="{Binding}" Click="BtnOpenSite_Click" IsEnabled="{Binding IsRunning}" Background="#0284c7" Padding="8,7"/>
+                                    <Button Content="🔑 WP-Admin" Tag="{Binding}" Click="BtnOpenAdmin_Click" IsEnabled="{Binding IsRunning}" Background="#0d9488" Padding="8,7"/>
+                                </UniformGrid>
+
+                                <UniformGrid Columns="2" Margin="0,0,0,8">
+                                    <Button Content="🗄️ PhpMyAdmin" Tag="{Binding}" Click="BtnOpenPma_Click" IsEnabled="{Binding IsRunning}" Background="#475569" Padding="8,6"/>
+                                    <Button Content="✉️ Mailpit" Tag="{Binding}" Click="BtnOpenMail_Click" IsEnabled="{Binding IsRunning}" Background="#475569" Padding="8,6"/>
+                                </UniformGrid>
+                                
+                                <!-- Outils & Maintenance -->
+                                <UniformGrid Columns="4" Margin="0,0,0,6">
+                                    <Button Content="💻 IDE" Tag="{Binding}" Click="BtnIde_Click" Padding="6,6"/>
+                                    <Button Content="🔍 Détails" Tag="{Binding}" Click="BtnAudit_Click" Background="#0f766e" Padding="6,6"/>
+                                    <Button Content="💾 Export" Tag="{Binding}" Click="BtnExportAzf_Click" Background="#8b5cf6" Padding="6,6"/>
+                                    <Button Content="📁 Dossier" Tag="{Binding}" Click="BtnFolder_Click" Background="#334155" Padding="6,6"/>
+                                </UniformGrid>
+
+                                <UniformGrid Columns="2">
+                                    <Button Content="🛠️ Réparer BDD" Tag="{Binding}" Click="BtnRepairDb_Click" Background="#d97706" Padding="6,6"/>
+                                    <Button Content="🗑️ Supprimer" Tag="{Binding}" Click="BtnDelete_Click" Background="#b91c1c" Padding="6,6"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- BARRE DE STATUT -->
+        <Border Grid.Row="3" Background="{StaticResource BgHeader}" CornerRadius="8" Padding="12,8" Margin="0,14,0,0" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+            <Grid>
+                <TextBlock x:Name="TxtStatus" Text="WoodPress 100% Desktop prêt — Zéro serveur Web" Foreground="{StaticResource TextSecondary}" FontSize="12"/>
+                <TextBlock x:Name="TxtCount" Text="0 projet(s)" Foreground="{StaticResource AccentGreen}" FontSize="12" HorizontalAlignment="Right" FontWeight="SemiBold"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

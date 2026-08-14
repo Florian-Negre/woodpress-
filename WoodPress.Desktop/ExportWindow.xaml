@@ -1,0 +1,44 @@
+<Window x:Class="WoodPress.Desktop.ExportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Exporter le Projet — WoodPress" 
+        Height="420" Width="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BgDark}">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Titre -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock x:Name="TxtTitle" Text="💾 Exporter un Projet" FontSize="20" FontWeight="Bold" Foreground="{StaticResource AccentGreen}"/>
+            <TextBlock Text="Choisissez le format d'exportation souhaité" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- Options -->
+        <StackPanel Grid.Row="1">
+            <RadioButton x:Name="OptAzf" Content="🚀 Paquet Propriétaire WoodPress (.AZF) [Recommandé]" IsChecked="True" Foreground="{StaticResource AccentGreen}" FontWeight="Bold" FontSize="14" Margin="0,0,0,6"/>
+            <TextBlock Text="Inclut la BDD SQL, le dossier wp-content et la configuration Docker tout-en-un." FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="24,0,0,16"/>
+
+            <RadioButton x:Name="OptSql" Content="💾 Base de Données SQL uniquement (.sql)" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+            <TextBlock Text="Dump mysqldump / SQL de la base de données MySQL." FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="24,0,0,16"/>
+
+            <RadioButton x:Name="OptWpContent" Content="📁 Dossier wp-content uniquement (.zip)" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+            <TextBlock Text="Archive comprimée des thèmes, plugins et fichiers médias uploads." FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="24,0,0,16"/>
+
+            <RadioButton x:Name="OptFullZip" Content="📦 Backup Complet du Projet (.zip)" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+            <TextBlock Text="Sauvegarde complète du répertoire et des fichiers." FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="24,0,0,12"/>
+        </StackPanel>
+
+        <!-- Boutons d'action -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Fermer" Click="BtnCancel_Click" Background="#334155" Margin="0,0,8,0"/>
+            <Button Content="💾 Générer l'Exportation" Click="BtnExport_Click" Background="{StaticResource AccentGreen}"/>
+        </StackPanel>
+    </Grid>
+</Window>

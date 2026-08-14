@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WoodPress.Core", "WoodPress.Core\WoodPress.Core.csproj", "{993EDC1A-3357-4F17-8770-B241BA43AD2F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WoodPress.App", "WoodPress.App\WoodPress.App.csproj", "{4196AE19-03FF-404B-A847-893470E943CD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WoodPress.Desktop", "WoodPress.Desktop\WoodPress.Desktop.csproj", "{47BF300C-CF20-4773-A85A-0E2605E68AF2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{993EDC1A-3357-4F17-8770-B241BA43AD2F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{993EDC1A-3357-4F17-8770-B241BA43AD2F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{993EDC1A-3357-4F17-8770-B241BA43AD2F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{993EDC1A-3357-4F17-8770-B241BA43AD2F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4196AE19-03FF-404B-A847-893470E943CD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4196AE19-03FF-404B-A847-893470E943CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4196AE19-03FF-404B-A847-893470E943CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4196AE19-03FF-404B-A847-893470E943CD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{47BF300C-CF20-4773-A85A-0E2605E68AF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{47BF300C-CF20-4773-A85A-0E2605E68AF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{47BF300C-CF20-4773-A85A-0E2605E68AF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{47BF300C-CF20-4773-A85A-0E2605E68AF2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

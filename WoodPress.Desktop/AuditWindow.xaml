@@ -1,0 +1,88 @@
+<Window x:Class="WoodPress.Desktop.AuditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Audit &amp; Détails du Projet — WoodPress" 
+        Height="580" Width="720"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Background="{StaticResource BgDark}">
+
+    <Window.Resources>
+        <!-- Style clair et lisible des en-têtes DataGrid -->
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#334155"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
+
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="#1e293b"/>
+            <Setter Property="Foreground" Value="#f8fafc"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#334155"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Padding="{TemplateBinding Padding}" Background="Transparent">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Titre -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock x:Name="TxtTitle" Text="🔍 Audit des Plugins &amp; Thèmes" FontSize="20" FontWeight="Bold" Foreground="{StaticResource AccentGreen}"/>
+            <TextBlock x:Name="TxtSubtitle" Text="Analyse de la santé et des versions WordPress" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- Contenu des onglets (Plugins / Thèmes) -->
+        <TabControl Grid.Row="1" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderColor}">
+            <!-- TAB PLUGINS -->
+            <TabItem Header="🧩 Extension(s) Plugins" Foreground="{StaticResource TextPrimary}" FontWeight="Bold" Padding="12,6">
+                <DataGrid x:Name="GridPlugins" AutoGenerateColumns="False" IsReadOnly="True" Background="#0f172a" Foreground="#f8fafc" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Extension" Binding="{Binding Name}" Width="2*"/>
+                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*"/>
+                        <DataGridTextColumn Header="Statut / Risque" Binding="{Binding Status}" Width="1.5*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- TAB THÈMES -->
+            <TabItem Header="🎨 Thème(s)" Foreground="{StaticResource TextPrimary}" FontWeight="Bold" Padding="12,6">
+                <DataGrid x:Name="GridThemes" AutoGenerateColumns="False" IsReadOnly="True" Background="#0f172a" Foreground="#f8fafc" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Thème" Binding="{Binding Name}" Width="2*"/>
+                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*"/>
+                        <DataGridTextColumn Header="Auteur" Binding="{Binding Author}" Width="1.5*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Bouton Fermer -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Fermer" Click="BtnClose_Click" Background="#334155"/>
+        </StackPanel>
+    </Grid>
+</Window>

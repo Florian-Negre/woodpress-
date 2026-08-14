@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- WoodPress App Icon — variante "arrondie" (style macOS squircle) -->
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#243347"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <radialGradient id="topGlow" cx="26%" cy="18%" r="65%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="botShade" cx="78%" cy="88%" r="60%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="woodGrad" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%" stop-color="#a3d84a"/>
+      <stop offset="55%" stop-color="#8BC34A"/>
+      <stop offset="100%" stop-color="#5a8f0f"/>
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7dd8fd"/>
+      <stop offset="55%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
+    <filter id="containerShadow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#04202e" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Squircle background (angle macOS : coins très arrondis, courbe continue) -->
+  <rect x="0" y="0" width="512" height="512" rx="184" ry="184" fill="url(#bgGrad)"/>
+  <rect x="0" y="0" width="512" height="512" rx="184" ry="184" fill="url(#topGlow)"/>
+  <rect x="0" y="0" width="512" height="512" rx="184" ry="184" fill="url(#botShade)"/>
+  <rect x="1.5" y="1.5" width="509" height="509" rx="182.5" ry="182.5" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+
+  <!-- Contenu : monogramme "W" en poutres de bois + conteneurs Docker empilés -->
+  <g filter="url(#softShadow)">
+    <ellipse cx="256" cy="248" rx="150" ry="120" fill="#8BC34A" opacity="0.06"/>
+
+    <path d="M150,196 L200,336 L256,244 L312,336 L362,196"
+          fill="none" stroke="url(#woodGrad)" stroke-width="58"
+          stroke-linecap="round" stroke-linejoin="round"/>
+
+    <path d="M150,196 L200,336 L256,244 L312,336 L362,196"
+          fill="none" stroke="#4d7c0f" stroke-width="58"
+          stroke-linecap="round" stroke-linejoin="round"
+          opacity="0.16" stroke-dasharray="1.5 13"/>
+
+    <path d="M150,196 L200,336 L256,244 L312,336 L362,196"
+          fill="none" stroke="#e3f4c8" stroke-width="9"
+          stroke-linecap="round" stroke-linejoin="round"
+          opacity="0.30" transform="translate(-7,-7)"/>
+
+    <g stroke="#3f6b0c" stroke-width="2.4" fill="none" opacity="0.55">
+      <circle cx="150" cy="196" r="22"/>
+      <circle cx="150" cy="196" r="13"/>
+      <circle cx="362" cy="196" r="22"/>
+      <circle cx="362" cy="196" r="13"/>
+    </g>
+    <circle cx="150" cy="196" r="5" fill="#3f6b0c" opacity="0.6"/>
+    <circle cx="362" cy="196" r="5" fill="#3f6b0c" opacity="0.6"/>
+
+    <g filter="url(#containerShadow)">
+      <rect x="194" y="150" width="56" height="56" rx="9" fill="url(#cyanGrad)" stroke="#0c4a6e" stroke-width="1.5"/>
+      <rect x="194" y="150" width="26" height="26" rx="6" fill="#ffffff" opacity="0.22"/>
+      <path d="M222,158 V192 M203,175 H241" stroke="#0c4a6e" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+
+      <rect x="262" y="150" width="56" height="56" rx="9" fill="url(#cyanGrad)" stroke="#0c4a6e" stroke-width="1.5"/>
+      <rect x="262" y="150" width="26" height="26" rx="6" fill="#ffffff" opacity="0.22"/>
+      <path d="M290,158 V192 M271,175 H309" stroke="#0c4a6e" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+
+      <rect x="228" y="90" width="56" height="56" rx="9" fill="url(#cyanGrad)" stroke="#0c4a6e" stroke-width="1.5"/>
+      <rect x="228" y="90" width="26" height="26" rx="6" fill="#ffffff" opacity="0.25"/>
+      <path d="M256,98 V132 M237,115 H275" stroke="#0c4a6e" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+    </g>
+  </g>
+</svg>
