@@ -13,7 +13,7 @@
         <SolidColorBrush x:Key="AccentBlue" Color="#38bdf8"/>
         <SolidColorBrush x:Key="BorderColor" Color="#334155"/>
         
-        <!-- Style des Boutons Modene -->
+        <!-- Style des Boutons Moderne -->
         <Style TargetType="Button">
             <Setter Property="Background" Value="{StaticResource AccentBlue}"/>
             <Setter Property="Foreground" Value="#ffffff"/>
@@ -32,6 +32,33 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Style des ComboBoxItem pour garantir un contraste parfait -->
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="#1e293b"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#3b82f6"/>
+                    <Setter Property="Foreground" Value="#ffffff"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#2563eb"/>
+                    <Setter Property="Foreground" Value="#ffffff"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Style des TextBox -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#1e293b"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="13"/>
         </Style>
     </Application.Resources>
 </Application>

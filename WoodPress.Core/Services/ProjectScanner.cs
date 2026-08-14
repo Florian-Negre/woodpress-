@@ -181,7 +181,7 @@ namespace WoodPress.Core.Services
                 DbPort = dbPort > 0 ? dbPort : 3307,
                 PmaPort = pmaPort > 0 ? pmaPort : 8086,
                 PhpVersion = existing?.PhpVersion ?? "8.4",
-                WpVersion = existing?.WpVersion ?? wpVersion,
+                WpVersion = !string.IsNullOrEmpty(wpVersion) ? wpVersion : (existing?.WpVersion ?? "6.7.2"),
                 HasWpConfig = File.Exists(Path.Combine(dirPath, "wp-config.php")),
                 HasWpContent = Directory.Exists(Path.Combine(dirPath, "wp-content")),
                 DockerStatus = hasDocker ? "stopped" : "not_linked"
