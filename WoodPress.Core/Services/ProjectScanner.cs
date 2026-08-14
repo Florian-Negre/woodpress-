@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -18,150 +19,152 @@ namespace WoodPress.Core.Services
 
         public async Task<List<ProjectInfo>> ScanAllWorkspacesAsync()
         {
-            var config = _configService.LoadConfig();
-            var registered = _configService.LoadProjects();
+            var config = _configService.GetConfig();
             var discovered = new List<ProjectInfo>();
-            var processedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var existingProjects = _configService.LoadProjects();
+            var existingMap = new Dictionary<string, ProjectInfo>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var ws in config.Workspaces)
+            foreach (var p in existingProjects)
             {
-                if (string.IsNullOrWhiteSpace(ws.Path) || !Directory.Exists(ws.Path))
+                if (!string.IsNullOrWhiteSpace(p.ProjectDir))
                 {
-                    continue;
+                    existingMap[p.ProjectDir] = p;
                 }
-
-                try
-                {
-                    var subDirs = Directory.GetDirectories(ws.Path);
-                    foreach (var dirPath in subDirs)
-                    {
-                        string dirName = Path.GetFileName(dirPath);
-                        if (dirName.StartsWith(".") || dirName.StartsWith("0-Codinflo_InterneDocs") || dirName == "node_modules")
-                        {
-                            continue;
-                        }
-
-                        if (processedPaths.Contains(dirPath)) continue;
-
-                        if (IsWordPressDir(dirPath))
-                        {
-                            processedPaths.Add(dirPath);
-                            discovered.Add(BuildDiscoveredProject(dirPath, dirName, ws.Type, registered));
-                            continue;
-                        }
-
-                        // Scan des sous-dossiers (ex: 01-Client/...)
-                        try
-                        {
-                            var deepDirs = Directory.GetDirectories(dirPath);
-                            foreach (var deepPath in deepDirs)
-                            {
-                                string deepName = Path.GetFileName(deepPath);
-                                if (deepName.StartsWith(".")) continue;
-
-                                if (processedPaths.Contains(deepPath)) continue;
-
-                                if (IsWordPressDir(deepPath))
-                                {
-                                    processedPaths.Add(deepPath);
-                                    discovered.Add(BuildDiscoveredProject(deepPath, $"{dirName} / {deepName}", ws.Type, registered));
-                                }
-                            }
-                        }
-                        catch { }
-                    }
-                }
-                catch { }
             }
+
+            // 1. Scan Workspace Pro (G:\Workspace)
+            if (Directory.Exists(config.WorkspaceProPath))
+            {
+                ScanDirectory(config.WorkspaceProPath, "workspace", existingMap, discovered);
+            }
+
+            // 2. Scan Learnspace (E:\E-Dev ou E:\E-Dev\WordPress)
+            if (Directory.Exists(config.LearningWorkspacePath))
+            {
+                ScanDirectory(config.LearningWorkspacePath, "learning", existingMap, discovered);
+            }
+
+            // 3. Persister la liste des projets scannés
+            _configService.SaveProjects(discovered);
 
             return discovered;
         }
 
-        private static bool IsWordPressDir(string dirPath)
+        private void ScanDirectory(string rootPath, string type, Dictionary<string, ProjectInfo> existingMap, List<ProjectInfo> results)
         {
-            if (!Directory.Exists(dirPath)) return false;
-
-            bool hasWpConfig = File.Exists(Path.Combine(dirPath, "wp-config.php")) ||
-                               File.Exists(Path.Combine(dirPath, "wp-config-sample.php")) ||
-                               File.Exists(Path.Combine(dirPath, "wordpress", "wp-config.php"));
-
-            bool hasWpContent = Directory.Exists(Path.Combine(dirPath, "wp-content")) ||
-                                Directory.Exists(Path.Combine(dirPath, "wordpress", "wp-content"));
-
-            bool hasDockerCompose = File.Exists(Path.Combine(dirPath, "docker-compose.yml")) ||
-                                    File.Exists(Path.Combine(dirPath, "docker", "docker-compose.yml"));
-
-            if (hasDockerCompose)
+            try
             {
-                string composePath = File.Exists(Path.Combine(dirPath, "docker-compose.yml"))
-                    ? Path.Combine(dirPath, "docker-compose.yml")
-                    : Path.Combine(dirPath, "docker", "docker-compose.yml");
-                try
+                foreach (var dir in Directory.GetDirectories(rootPath))
                 {
-                    string content = File.ReadAllText(composePath);
-                    if (content.Contains("wordpress") || content.Contains("WORDPRESS_") || content.Contains("mysql"))
+                    string dirName = Path.GetFileName(dir);
+                    if (dirName.StartsWith(".") || dirName.Equals("node_modules", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    // Si c'est un dossier client regroupant plusieurs projets (ex: 01-Client)
+                    if (dirName.StartsWith("01-") || dirName.Contains("Client", StringComparison.OrdinalIgnoreCase))
                     {
-                        return true;
+                        try
+                        {
+                            foreach (var subDir in Directory.GetDirectories(dir))
+                            {
+                                if (IsWordPressProject(subDir))
+                                {
+                                    existingMap.TryGetValue(subDir, out var existing);
+                                    results.Add(AnalyzeProject(subDir, type, $"{dirName}/{Path.GetFileName(subDir)}", existing));
+                                }
+                            }
+                        }
+                        catch { }
+                        continue;
+                    }
+
+                    if (IsWordPressProject(dir))
+                    {
+                        existingMap.TryGetValue(dir, out var existing);
+                        results.Add(AnalyzeProject(dir, type, dirName, existing));
                     }
                 }
-                catch { }
             }
-
-            return hasWpConfig || hasWpContent;
+            catch { }
         }
 
-        private static ProjectInfo BuildDiscoveredProject(string dirPath, string displayName, string type, List<ProjectInfo> registered)
+        private bool IsWordPressProject(string dirPath)
         {
-            string normPath = Path.GetFullPath(dirPath);
-            var existing = registered.Find(p => string.Equals(Path.GetFullPath(p.ProjectDir), normPath, StringComparison.OrdinalIgnoreCase));
+            return File.Exists(Path.Combine(dirPath, "wp-config.php")) ||
+                   File.Exists(Path.Combine(dirPath, "docker-compose.yml")) ||
+                   Directory.Exists(Path.Combine(dirPath, "wp-content")) ||
+                   Directory.Exists(Path.Combine(dirPath, "wp-includes")) ||
+                   Directory.Exists(Path.Combine(dirPath, "wordpress")) ||
+                   Directory.Exists(Path.Combine(dirPath, "wp-content-mirror"));
+        }
 
+        private ProjectInfo AnalyzeProject(string dirPath, string type, string displayName, ProjectInfo? existing)
+        {
             string composeDir = dirPath;
-            if (!File.Exists(Path.Combine(dirPath, "docker-compose.yml")) && File.Exists(Path.Combine(dirPath, "docker", "docker-compose.yml")))
+            if (!File.Exists(Path.Combine(dirPath, "docker-compose.yml")) && Directory.Exists(Path.Combine(dirPath, "docker")))
             {
                 composeDir = Path.Combine(dirPath, "docker");
             }
 
             bool hasDocker = File.Exists(Path.Combine(composeDir, "docker-compose.yml"));
-            int httpPort = existing?.HttpPort ?? 0;
-            int dbPort = existing?.DbPort ?? 0;
-            int pmaPort = existing?.PmaPort ?? 0;
+            int httpPort = 0;
+            int dbPort = 0;
+            int pmaPort = 0;
+            int mailPort = 0;
+            string phpVersion = "8.4";
 
-            if (hasDocker && httpPort == 0)
+            // 1. Analyse approfondie de docker-compose.yml
+            if (hasDocker)
             {
                 try
                 {
                     string composeText = File.ReadAllText(Path.Combine(composeDir, "docker-compose.yml"));
-                    var portMatch = Regex.Match(composeText, @"""(\d+):80""");
+
+                    // Ports HTTP
+                    var portMatch = Regex.Match(composeText, @"[""']?(\d+):80[""']?");
                     if (portMatch.Success && int.TryParse(portMatch.Groups[1].Value, out int pHttp)) httpPort = pHttp;
 
-                    var dbMatch = Regex.Match(composeText, @"""(\d+):3306""");
+                    // Ports MySQL
+                    var dbMatch = Regex.Match(composeText, @"[""']?(\d+):3306[""']?");
                     if (dbMatch.Success && int.TryParse(dbMatch.Groups[1].Value, out int pDb)) dbPort = pDb;
 
-                    var pmaMatch = Regex.Match(composeText, @"""(\d+):8081""");
-                    if (pmaMatch.Success && int.TryParse(pmaMatch.Groups[1].Value, out int pPma)) pmaPort = pPma;
+                    // Ports PhpMyAdmin
+                    var pmaMatch = Regex.Match(composeText, @"[""']?(\d+):(80|8080|8081)[""']?");
+                    if (pmaMatch.Success && int.TryParse(pmaMatch.Groups[1].Value, out int pPma) && pPma != httpPort) pmaPort = pPma;
+
+                    // Ports Mailpit
+                    var mailMatch = Regex.Match(composeText, @"[""']?(\d+):8025[""']?");
+                    if (mailMatch.Success && int.TryParse(mailMatch.Groups[1].Value, out int pMail)) mailPort = pMail;
+
+                    // Version PHP depuis l'image docker
+                    var phpMatch = Regex.Match(composeText, @"wordpress:(?:php)?([0-9\.]+)(?:-apache)?");
+                    if (phpMatch.Success) phpVersion = phpMatch.Groups[1].Value;
                 }
                 catch { }
             }
 
-            string wpVersion = "6.7.2";
-            string[] possibleVersionFiles = new[]
+            // 2. Détection de la VRAIE version WordPress sur Disque (wp-includes/version.php)
+            string? foundWpVersion = null;
+            string[] searchPaths = new[]
             {
                 Path.Combine(dirPath, "wp-includes", "version.php"),
                 Path.Combine(dirPath, "wordpress", "wp-includes", "version.php"),
-                Path.Combine(dirPath, "wp-content-mirror", "..", "wp-includes", "version.php")
+                Path.Combine(dirPath, "public", "wp-includes", "version.php"),
+                Path.Combine(dirPath, "src", "wp-includes", "version.php"),
+                Path.Combine(dirPath, "app", "wp-includes", "version.php")
             };
 
-            foreach (var vFile in possibleVersionFiles)
+            foreach (var vFile in searchPaths)
             {
                 if (File.Exists(vFile))
                 {
                     try
                     {
-                        string vText = File.ReadAllText(vFile);
-                        var vMatch = Regex.Match(vText, @"\$wp_version\s*=\s*'([^']+)'");
-                        if (vMatch.Success)
+                        string content = File.ReadAllText(vFile);
+                        var match = Regex.Match(content, @"\$wp_version\s*=\s*['""]([^'""]+)['""]");
+                        if (match.Success)
                         {
-                            wpVersion = vMatch.Groups[1].Value;
+                            foundWpVersion = match.Groups[1].Value.Trim();
                             break;
                         }
                     }
@@ -169,19 +172,53 @@ namespace WoodPress.Core.Services
                 }
             }
 
+            // 3. Si non trouvé sur disque, vérifier via WP-CLI Docker si disponible
+            string projectName = existing?.ProjectName ?? Path.GetFileName(dirPath);
+            if (string.IsNullOrEmpty(foundWpVersion) && hasDocker)
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "docker",
+                        Arguments = $"exec {projectName}-wp wp core version",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    using (var proc = Process.Start(psi))
+                    {
+                        if (proc != null)
+                        {
+                            string output = proc.StandardOutput.ReadToEnd().Trim();
+                            proc.WaitForExit(2000);
+                            if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && Regex.IsMatch(output, @"^[0-9\.]+"))
+                            {
+                                foundWpVersion = output;
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            string finalWpVersion = foundWpVersion ?? "6.7.2";
+
             return new ProjectInfo
             {
                 Id = existing?.Id ?? $"discovered_{Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(dirPath))[..12]}",
-                ProjectName = existing?.ProjectName ?? Path.GetFileName(dirPath),
+                ProjectName = projectName,
                 ClientName = existing?.ClientName ?? displayName,
                 ProjectDir = dirPath,
                 ComposeDir = composeDir,
                 Type = existing?.Type ?? type,
-                HttpPort = httpPort > 0 ? httpPort : 8081,
-                DbPort = dbPort > 0 ? dbPort : 3307,
-                PmaPort = pmaPort > 0 ? pmaPort : 8086,
-                PhpVersion = existing?.PhpVersion ?? "8.4",
-                WpVersion = !string.IsNullOrEmpty(wpVersion) ? wpVersion : (existing?.WpVersion ?? "6.7.2"),
+                HttpPort = httpPort > 0 ? httpPort : (existing?.HttpPort > 0 ? existing.HttpPort : 8081),
+                DbPort = dbPort > 0 ? dbPort : (existing?.DbPort > 0 ? existing.DbPort : 3307),
+                PmaPort = pmaPort > 0 ? pmaPort : (existing?.PmaPort > 0 ? existing.PmaPort : 8086),
+                MailPort = mailPort > 0 ? mailPort : (existing?.MailPort > 0 ? existing.MailPort : 8025),
+                PhpVersion = phpVersion,
+                WpVersion = finalWpVersion,
                 HasWpConfig = File.Exists(Path.Combine(dirPath, "wp-config.php")),
                 HasWpContent = Directory.Exists(Path.Combine(dirPath, "wp-content")),
                 DockerStatus = hasDocker ? "stopped" : "not_linked"

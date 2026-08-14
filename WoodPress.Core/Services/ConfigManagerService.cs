@@ -27,6 +27,12 @@ namespace WoodPress.Core.Services
 
         [JsonPropertyName("autoScanOnStartup")]
         public bool AutoScanOnStartup { get; set; } = true;
+
+        [JsonIgnore]
+        public string WorkspaceProPath => Workspaces.FirstOrDefault(w => w.Type == "workspace")?.Path ?? @"G:\Workspace";
+
+        [JsonIgnore]
+        public string LearningWorkspacePath => Workspaces.FirstOrDefault(w => w.Type == "learning")?.Path ?? @"E:\E-Dev\WordPress";
     }
 
     public class WorkspaceItem
@@ -69,6 +75,8 @@ namespace WoodPress.Core.Services
                 Directory.CreateDirectory(_dataDir);
             }
         }
+
+        public AppConfig GetConfig() => LoadConfig();
 
         public AppConfig LoadConfig()
         {
