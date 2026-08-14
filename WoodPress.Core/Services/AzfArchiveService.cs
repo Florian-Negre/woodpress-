@@ -77,11 +77,44 @@ namespace WoodPress.Core.Services
                     zip.CreateEntryFromFile(composePath, "docker-compose.yml");
                 }
 
-                // 3. Inclure le répertoire wp-content si présent
-                string wpContentDir = Path.Combine(project.ProjectDir, "wp-content");
-                if (Directory.Exists(wpContentDir))
+                // 2. Inclusion du dossier wp-content (sur disque ou extrait du conteneur Docker)
+                string localWpContent = Path.Combine(project.ProjectDir, "wp-content");
+                string mirrorWpContent = Path.Combine(project.ProjectDir, "wp-content-mirror");
+
+                if (Directory.Exists(localWpContent))
                 {
-                    AddDirectoryToZip(zip, wpContentDir, "wp-content");
+                    AddDirectoryToZip(zip, localWpContent, "wp-content");
+                }
+                else if (Directory.Exists(mirrorWpContent))
+                {
+                    AddDirectoryToZip(zip, mirrorWpContent, "wp-content");
+                }
+                else
+                {
+                    // Extraction directe à chaud depuis le conteneur Docker (Cas des volumes nommés comme vk-wp)
+                    string tempWpContent = Path.Combine(outputDirectory, $"temp_wp_{project.ProjectName}");
+                    try
+                    {
+                        var psi = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "docker",
+                            Arguments = $"cp {project.ProjectName}-wp:/var/www/html/wp-content \"{tempWpContent}\"",
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            CreateNoWindow = true
+                        };
+                        using (var proc = System.Diagnostics.Process.Start(psi))
+                        {
+                            proc?.WaitForExit(15000);
+                        }
+                        if (Directory.Exists(tempWpContent))
+                        {
+                            AddDirectoryToZip(zip, tempWpContent, "wp-content");
+                            Directory.Delete(tempWpContent, true);
+                        }
+                    }
+                    catch { }
                 }
             }
 
