@@ -113,6 +113,8 @@ namespace WoodPress.Core.Services
             int mailPort = 0;
             string phpVersion = "8.4";
 
+            string? foundWpVersion = null;
+
             // 1. Analyse approfondie de docker-compose.yml
             if (hasDocker)
             {
@@ -136,39 +138,56 @@ namespace WoodPress.Core.Services
                     var mailMatch = Regex.Match(composeText, @"[""']?(\d+):8025[""']?");
                     if (mailMatch.Success && int.TryParse(mailMatch.Groups[1].Value, out int pMail)) mailPort = pMail;
 
-                    // Version PHP depuis l'image docker
-                    var phpMatch = Regex.Match(composeText, @"wordpress:(?:php)?([0-9\.]+)(?:-apache)?");
-                    if (phpMatch.Success) phpVersion = phpMatch.Groups[1].Value;
+                    // Image WordPress (ex: wordpress:7.0.4-php8.4-apache ou wordpress:php8.4-apache)
+                    var wpImageMatch = Regex.Match(composeText, @"image:\s*wordpress:([^\r\n\s]+)");
+                    if (wpImageMatch.Success)
+                    {
+                        string tag = wpImageMatch.Groups[1].Value;
+                        // Ex: 7.0.4-php8.4-apache -> WP 7.0.4, PHP 8.4
+                        var fullVerMatch = Regex.Match(tag, @"^([0-9\.]+)-php([0-9\.]+)");
+                        if (fullVerMatch.Success)
+                        {
+                            foundWpVersion = fullVerMatch.Groups[1].Value;
+                            phpVersion = fullVerMatch.Groups[2].Value;
+                        }
+                        else
+                        {
+                            var phpOnlyMatch = Regex.Match(tag, @"php([0-9\.]+)");
+                            if (phpOnlyMatch.Success) phpVersion = phpOnlyMatch.Groups[1].Value;
+                        }
+                    }
                 }
                 catch { }
             }
 
-            // 2. Détection de la VRAIE version WordPress sur Disque (wp-includes/version.php)
-            string? foundWpVersion = null;
-            string[] searchPaths = new[]
+            // 2. Détection sur Disque (wp-includes/version.php) si non spécifié dans l'image
+            if (string.IsNullOrEmpty(foundWpVersion))
             {
-                Path.Combine(dirPath, "wp-includes", "version.php"),
-                Path.Combine(dirPath, "wordpress", "wp-includes", "version.php"),
-                Path.Combine(dirPath, "public", "wp-includes", "version.php"),
-                Path.Combine(dirPath, "src", "wp-includes", "version.php"),
-                Path.Combine(dirPath, "app", "wp-includes", "version.php")
-            };
-
-            foreach (var vFile in searchPaths)
-            {
-                if (File.Exists(vFile))
+                string[] searchPaths = new[]
                 {
-                    try
+                    Path.Combine(dirPath, "wp-includes", "version.php"),
+                    Path.Combine(dirPath, "wordpress", "wp-includes", "version.php"),
+                    Path.Combine(dirPath, "public", "wp-includes", "version.php"),
+                    Path.Combine(dirPath, "src", "wp-includes", "version.php"),
+                    Path.Combine(dirPath, "app", "wp-includes", "version.php")
+                };
+
+                foreach (var vFile in searchPaths)
+                {
+                    if (File.Exists(vFile))
                     {
-                        string content = File.ReadAllText(vFile);
-                        var match = Regex.Match(content, @"\$wp_version\s*=\s*['""]([^'""]+)['""]");
-                        if (match.Success)
+                        try
                         {
-                            foundWpVersion = match.Groups[1].Value.Trim();
-                            break;
+                            string content = File.ReadAllText(vFile);
+                            var match = Regex.Match(content, @"\$wp_version\s*=\s*['""]([^'""]+)['""]");
+                            if (match.Success)
+                            {
+                                foundWpVersion = match.Groups[1].Value.Trim();
+                                break;
+                            }
                         }
+                        catch { }
                     }
-                    catch { }
                 }
             }
 
