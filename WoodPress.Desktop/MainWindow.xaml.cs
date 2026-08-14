@@ -324,23 +324,27 @@ namespace WoodPress.Desktop
 
         private async void BtnImportAzf_Click(object sender, RoutedEventArgs e)
         {
-            var ofd = new OpenFileDialog
+            var dialog = new OpenFileDialog
             {
-                Filter = "Paquet WoodPress (*.azf)|*.azf|Tous les fichiers (*.*)|*.*",
-                Title = "Sélectionnez un paquet propriétaire .AZF"
+                Title = "Importer un Projet WordPress (Paquet .AZF, Zip ou .wpress)",
+                Filter = "Tous les formats supportés (*.azf;*.zip;*.wpress)|*.azf;*.zip;*.wpress|Paquet Propriétaire WoodPress (*.azf)|*.azf|Archive Zip WordPress (*.zip)|*.zip|Archive All-in-One WP Migration (*.wpress)|*.wpress|Tous les fichiers (*.*)|*.*"
             };
 
-            if (ofd.ShowDialog() == true)
+            if (dialog.ShowDialog() == true)
             {
-                string path = ofd.FileName;
-                var manifest = await AzfArchiveService.ReadManifestAsync(path);
-                if (manifest != null)
+                string targetBaseDir = @"G:\Workspace";
+                if (TabLearning.IsChecked == true) targetBaseDir = @"E:\E-Dev\WordPress";
+
+                TxtStatus.Text = "Importation et extraction du projet en cours...";
+                try
                 {
-                    MessageBox.Show($"Paquet .AZF reconnu !\nProjet : {manifest.ProjectName}\nClient : {manifest.ClientName}\nVersion WP : {manifest.WpVersion}", "Import .AZF", MessageBoxButton.OK, MessageBoxImage.Information);
+                    var imported = await UniversalImportService.ImportProjectArchiveAsync(dialog.FileName, targetBaseDir);
+                    MessageBox.Show($"Projet '{imported.ClientName}' importé avec succès dans :\n{imported.ProjectDir}\n\nPort HTTP attribué : :{imported.HttpPort}", "Importation Réussie", MessageBoxButton.OK, MessageBoxImage.Information);
+                    await RefreshProjectsAsync();
                 }
-                else
+                catch (Exception ex)
                 {
-                    MessageBox.Show("Fichier .AZF invalide ou corrompu.", "Erreur Import", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"Erreur lors de l'importation : {ex.Message}", "Erreur Importation", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }

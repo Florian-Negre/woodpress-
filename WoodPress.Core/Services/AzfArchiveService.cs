@@ -88,6 +88,20 @@ namespace WoodPress.Core.Services
             return azfFilePath;
         }
 
+        /// <summary>
+        /// Extrait un paquet .AZF dans un dossier de destination
+        /// </summary>
+        public static async Task ExtractAzfPackageAsync(string azfFilePath, string destinationDir)
+        {
+            if (!File.Exists(azfFilePath))
+                throw new FileNotFoundException("Fichier .AZF introuvable.", azfFilePath);
+
+            if (!Directory.Exists(destinationDir))
+                Directory.CreateDirectory(destinationDir);
+
+            await Task.Run(() => ZipFile.ExtractToDirectory(azfFilePath, destinationDir, true));
+        }
+
         private static void AddDirectoryToZip(ZipArchive zip, string sourceDir, string entryPrefix)
         {
             var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);

@@ -55,11 +55,11 @@
             <TextBlock x:Name="TxtSubtitle" Text="Analyse de la santé et des versions WordPress" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
         </StackPanel>
 
-        <!-- Contenu des onglets (Plugins / Thèmes) -->
-        <TabControl Grid.Row="1" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderColor}">
+        <!-- Contenu des onglets (Plugins / Thèmes) avec style sombre élégant -->
+        <TabControl Grid.Row="1" Background="#0f172a" BorderBrush="{StaticResource BorderColor}">
             <!-- TAB PLUGINS -->
-            <TabItem Header="🧩 Extension(s) Plugins" Foreground="{StaticResource TextPrimary}" FontWeight="Bold" Padding="12,6">
-                <DataGrid x:Name="GridPlugins" AutoGenerateColumns="False" IsReadOnly="True" Background="#0f172a" Foreground="#f8fafc" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+            <TabItem Header="🧩 Extension(s) Plugins" Padding="14,8">
+                <DataGrid x:Name="GridPlugins" AutoGenerateColumns="False" IsReadOnly="True" Background="#0f172a" Foreground="#f8fafc" GridLinesVisibility="Horizontal" HeadersVisibility="Column" BorderThickness="0" Margin="0,8,0,0">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Extension" Binding="{Binding Name}" Width="2*"/>
                         <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*"/>
@@ -69,8 +69,8 @@
             </TabItem>
 
             <!-- TAB THÈMES -->
-            <TabItem Header="🎨 Thème(s)" Foreground="{StaticResource TextPrimary}" FontWeight="Bold" Padding="12,6">
-                <DataGrid x:Name="GridThemes" AutoGenerateColumns="False" IsReadOnly="True" Background="#0f172a" Foreground="#f8fafc" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+            <TabItem Header="🎨 Thème(s)" Padding="14,8">
+                <DataGrid x:Name="GridThemes" AutoGenerateColumns="False" IsReadOnly="True" Background="#0f172a" Foreground="#f8fafc" GridLinesVisibility="Horizontal" HeadersVisibility="Column" BorderThickness="0" Margin="0,8,0,0">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Thème" Binding="{Binding Name}" Width="2*"/>
                         <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*"/>
@@ -82,7 +82,7 @@
 
         <!-- Bouton Fermer -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Content="Fermer" Click="BtnClose_Click" Background="#334155"/>
+            <Button Content="Fermer" Click="BtnClose_Click" Background="#334155" Padding="16,8"/>
         </StackPanel>
     </Grid>
 </Window>
