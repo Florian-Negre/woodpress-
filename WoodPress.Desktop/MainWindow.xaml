@@ -96,10 +96,14 @@
                                 <TextBlock Text="Dossier :" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
                                 <TextBlock Text="{Binding ProjectDir}" FontSize="11" Foreground="#cbd5e1" TextTrimming="CharacterEllipsis" Margin="0,0,0,14" ToolTip="{Binding ProjectDir}"/>
 
-                                <!-- Actions Principales : Démarrer / Stop -->
-                                <UniformGrid Columns="2" Margin="0,0,0,6">
-                                    <Button Content="▶️ Démarrer" Tag="{Binding}" Click="BtnStart_Click" Background="{StaticResource AccentGreen}" Padding="10,8"/>
-                                    <Button Content="⏹️ Stop" Tag="{Binding}" Click="BtnStop_Click" Background="#ef4444" Padding="10,8"/>
+                                <!-- Actions Principales Conditionnelles (Démarrer si éteint / Arrêter + Redémarrer si en ligne) -->
+                                <Grid Margin="0,0,0,6" Visibility="{Binding IsNotRunning, Converter={StaticResource BoolToVis}}">
+                                    <Button Content="▶️ Démarrer le site" Tag="{Binding}" Click="BtnStart_Click" Background="{StaticResource AccentGreen}" Padding="10,9" FontSize="13" FontWeight="Bold"/>
+                                </Grid>
+
+                                <UniformGrid Columns="2" Margin="0,0,0,6" Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}">
+                                    <Button Content="⏹️ Arrêter" Tag="{Binding}" Click="BtnStop_Click" Background="#ef4444" Padding="10,8" FontWeight="SemiBold"/>
+                                    <Button Content="🔄 Redémarrer" Tag="{Binding}" Click="BtnRestart_Click" Background="#0284c7" Padding="10,8" FontWeight="SemiBold"/>
                                 </UniformGrid>
 
                                 <!-- Accès Web (Actifs UNIQUEMENT quand le site est en ligne) -->

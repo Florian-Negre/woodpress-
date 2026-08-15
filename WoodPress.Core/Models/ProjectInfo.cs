@@ -50,6 +50,9 @@ namespace WoodPress.Core.Models
         [JsonPropertyName("isRunning")]
         public bool IsRunning { get; set; }
 
+        [JsonIgnore]
+        public bool IsNotRunning => !IsRunning;
+
         [JsonPropertyName("hasWpConfig")]
         public bool HasWpConfig { get; set; }
 

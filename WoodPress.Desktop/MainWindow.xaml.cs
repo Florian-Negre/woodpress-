@@ -212,13 +212,34 @@ namespace WoodPress.Desktop
         {
             if (sender is Button btn && btn.Tag is ProjectInfo project)
             {
-                string originalText = btn.Content.ToString() ?? "⏹️ Stop";
+                string originalText = btn.Content.ToString() ?? "⏹️ Arrêter";
                 btn.IsEnabled = false;
                 btn.Content = "⏳ Arrêt...";
 
                 try
                 {
                     await DockerService.StopContainersAsync(project.ComposeDir);
+                }
+                finally
+                {
+                    btn.Content = originalText;
+                    btn.IsEnabled = true;
+                    await RefreshProjectsAsync();
+                }
+            }
+        }
+
+        private async void BtnRestart_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is ProjectInfo project)
+            {
+                string originalText = btn.Content.ToString() ?? "🔄 Redémarrer";
+                btn.IsEnabled = false;
+                btn.Content = "⏳ Redémarrage...";
+
+                try
+                {
+                    await DockerService.RestartContainersAsync(project.ComposeDir);
                 }
                 finally
                 {

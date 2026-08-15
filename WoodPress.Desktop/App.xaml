@@ -12,6 +12,7 @@
         <SolidColorBrush x:Key="AccentGreen" Color="#8BC34A"/>
         <SolidColorBrush x:Key="AccentBlue" Color="#38bdf8"/>
         <SolidColorBrush x:Key="BorderColor" Color="#334155"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         
         <!-- Style des Boutons Moderne -->
         <Style TargetType="Button">
