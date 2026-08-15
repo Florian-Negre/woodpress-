@@ -1,0 +1,54 @@
+<Window x:Class="WoodPress.Desktop.ImportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Importer un Projet — WoodPress" 
+        Height="470" Width="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BgDark}">
+
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Titre -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="📥 Importer un Projet WordPress" FontSize="20" FontWeight="Bold" Foreground="{StaticResource AccentBlue}"/>
+            <TextBlock Text="Choisissez le format de votre archive source (.azf, .zip, .wpress)" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- Options & Fichier -->
+        <StackPanel Grid.Row="1">
+            <TextBlock Text="1. Format de l'archive :" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,8"/>
+            
+            <RadioButton x:Name="OptAzf" Content="🚀 Paquet Propriétaire WoodPress (.AZF)" IsChecked="True" Foreground="{StaticResource AccentGreen}" FontWeight="Bold" FontSize="13" Margin="0,0,0,6" Checked="FormatRadio_Checked"/>
+            <RadioButton x:Name="OptZip" Content="📦 Archive Zip WordPress Standard (.ZIP)" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6" Checked="FormatRadio_Checked"/>
+            <RadioButton x:Name="OptWpress" Content="🌐 Archive All-in-One WP Migration (.WPRESS)" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,14" Checked="FormatRadio_Checked"/>
+
+            <TextBlock Text="2. Fichier source :" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+            <Grid Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TxtFilePath" IsReadOnly="True" Padding="8,7" FontSize="12"/>
+                <Button Grid.Column="1" Content="📁 Parcourir..." Click="BtnBrowse_Click" Background="#334155" Padding="12,7" Margin="8,0,0,0"/>
+            </Grid>
+
+            <TextBlock Text="3. Espace de destination :" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+            <ComboBox x:Name="CboWorkspace" Padding="8,6" Margin="0,0,0,10">
+                <ComboBoxItem Content="Workspace Pro (G:\Workspace)" IsSelected="True"/>
+                <ComboBoxItem Content="Learnspace WordPress (E:\E-Dev\WordPress)"/>
+            </ComboBox>
+        </StackPanel>
+
+        <!-- Boutons d'action -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Annuler" Click="BtnCancel_Click" Background="#334155" Margin="0,0,8,0"/>
+            <Button x:Name="BtnSubmitImport" Content="📥 Lancer l'Importation" Click="BtnSubmitImport_Click" Background="{StaticResource AccentBlue}" FontWeight="Bold"/>
+        </StackPanel>
+    </Grid>
+</Window>

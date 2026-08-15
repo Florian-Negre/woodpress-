@@ -497,29 +497,12 @@ namespace WoodPress.Desktop
             dialog.ShowDialog();
         }
 
-        private async void BtnImportAzf_Click(object sender, RoutedEventArgs e)
+        private async void BtnImport_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new OpenFileDialog
+            var win = new ImportWindow { Owner = this };
+            if (win.ShowDialog() == true && win.ImportedProject != null)
             {
-                Title = "Importer un Projet WordPress (Paquet .AZF, Zip ou .wpress)",
-                Filter = "Tous les formats supportés (*.azf;*.zip;*.wpress)|*.azf;*.zip;*.wpress|Paquet Propriétaire WoodPress (*.azf)|*.azf|Archive Zip WordPress (*.zip)|*.zip|Archive All-in-One WP Migration (*.wpress)|*.wpress|Tous les fichiers (*.*)|*.*"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                string targetBaseDir = @"G:\Workspace";
-                if (TabLearning.IsChecked == true) targetBaseDir = @"E:\E-Dev\WordPress";
-
-                try
-                {
-                    var imported = await UniversalImportService.ImportProjectArchiveAsync(dialog.FileName, targetBaseDir);
-                    MessageBox.Show($"Projet '{imported.ClientName}' importé avec succès dans :\n{imported.ProjectDir}\n\nPort HTTP attribué : :{imported.HttpPort}", "Importation Réussie", MessageBoxButton.OK, MessageBoxImage.Information);
-                    await RefreshProjectsAsync();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Erreur lors de l'importation : {ex.Message}", "Erreur Importation", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                await RefreshProjectsAsync();
             }
         }
     }
