@@ -190,9 +190,45 @@ namespace WoodPress.Desktop
             }
         }
 
-        private async void BtnRefresh_Click(object sender, RoutedEventArgs e)
+        private async void BtnScan_Click(object sender, RoutedEventArgs e)
         {
-            await RefreshProjectsAsync();
+            var result = MessageBox.Show(
+                "Voulez-vous scanner vos dossiers configurés (Workspaces & Learnspace) et Docker à la recherche de sites WordPress existants ?",
+                "🔍 Lancer le Scan WordPress",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question
+            );
+
+            if (result != MessageBoxResult.Yes) return;
+
+            BtnScan.IsEnabled = false;
+            BtnScan.Content = "⏳ Scan en cours...";
+            TxtDockerGlobalStatus.Text = "🔍 Analyse de vos répertoires et inspection des conteneurs Docker...";
+
+            try
+            {
+                await RefreshProjectsAsync();
+
+                int total = _allProjects.Count;
+                int online = _allProjects.Count(p => p.IsRunning);
+                int stopped = total - online;
+
+                MessageBox.Show(
+                    $"Scan terminé avec succès !\n\n📊 Résultat de l'analyse :\n• Total détecté : {total} site(s) WordPress\n• En ligne : 🟢 {online}\n• Arrêté(s) : 🔴 {stopped}",
+                    "Résultat du Scan",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information
+                );
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erreur lors du scan : {ex.Message}", "Erreur Scan", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnScan.IsEnabled = true;
+                BtnScan.Content = "🔍 Scanner";
+            }
         }
 
         private void FilterTab_Checked(object sender, RoutedEventArgs e)

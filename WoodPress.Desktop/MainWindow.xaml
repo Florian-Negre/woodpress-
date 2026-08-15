@@ -35,7 +35,7 @@
                     <Button x:Name="BtnNewProject" Content="➕ Nouveau Projet" Click="BtnNewProject_Click" Background="{StaticResource AccentGreen}" Padding="14,9" Margin="0,0,8,0"/>
                     <Button x:Name="BtnSettings" Content="⚙️ Choix IDE" Click="BtnSettings_Click" Background="#334155" Padding="12,9" Margin="0,0,8,0"/>
                     <Button x:Name="BtnImportAzf" Content="📥 Importer .AZF" Click="BtnImportAzf_Click" Background="#8b5cf6" Padding="12,9" Margin="0,0,8,0"/>
-                    <Button x:Name="BtnRefresh" Content="🔄 Rescanner" Click="BtnRefresh_Click" Background="#3b82f6" Padding="12,9"/>
+                    <Button x:Name="BtnScan" Content="🔍 Scanner" Click="BtnScan_Click" Background="#3b82f6" Padding="12,9"/>
                 </StackPanel>
             </Grid>
         </Border>
