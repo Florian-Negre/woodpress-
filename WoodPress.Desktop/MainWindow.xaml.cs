@@ -73,8 +73,24 @@ namespace WoodPress.Desktop
                         continue;
                     }
 
-                    string containerName = $"{p.ProjectName}-wp";
+                    // Inspection dynamique du conteneur Docker
+                    string containerName = string.Empty;
+                    if (!string.IsNullOrEmpty(p.ComposeDir))
+                    {
+                        containerName = await DockerService.GetServiceContainerNameAsync(p.ComposeDir, "wordpress");
+                    }
+                    if (string.IsNullOrEmpty(containerName))
+                    {
+                        containerName = $"{p.ProjectName.ToLowerInvariant()}-wp";
+                    }
+
                     string status = await DockerService.GetContainerStatusAsync(containerName);
+                    if (status != "running")
+                    {
+                        string altStatus = await DockerService.GetContainerStatusAsync($"{p.ProjectName}-wp");
+                        if (altStatus == "running") status = "running";
+                    }
+
                     if (status == "running")
                     {
                         p.DockerStatus = "🟢 En ligne";
@@ -159,6 +175,7 @@ namespace WoodPress.Desktop
             }
 
             var list = filtered.ToList();
+            ProjectsControl.ItemsSource = null;
             ProjectsControl.ItemsSource = list;
             TxtCount.Text = $"{list.Count} projet(s) affiché(s)";
         }

@@ -1,10 +1,16 @@
 using System;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace WoodPress.Core.Models
 {
-    public class ProjectInfo
+    public class ProjectInfo : INotifyPropertyChanged
     {
+        private string _dockerStatus = "🔴 Arrêté";
+        private string _dockerStatusColor = "#ef4444";
+        private bool _isRunning;
+
         [JsonPropertyName("id")]
         public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
@@ -42,13 +48,47 @@ namespace WoodPress.Core.Models
         public string WpVersion { get; set; } = "7.0.4";
 
         [JsonPropertyName("dockerStatus")]
-        public string DockerStatus { get; set; } = "stopped"; // "running", "stopped", "not_linked"
+        public string DockerStatus
+        {
+            get => _dockerStatus;
+            set
+            {
+                if (_dockerStatus != value)
+                {
+                    _dockerStatus = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         [JsonPropertyName("dockerStatusColor")]
-        public string DockerStatusColor { get; set; } = "#ef4444"; // "#22c55e" (vert), "#ef4444" (rouge), "#f59e0b" (jaune)
+        public string DockerStatusColor
+        {
+            get => _dockerStatusColor;
+            set
+            {
+                if (_dockerStatusColor != value)
+                {
+                    _dockerStatusColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         [JsonPropertyName("isRunning")]
-        public bool IsRunning { get; set; }
+        public bool IsRunning
+        {
+            get => _isRunning;
+            set
+            {
+                if (_isRunning != value)
+                {
+                    _isRunning = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsNotRunning));
+                }
+            }
+        }
 
         [JsonIgnore]
         public bool IsNotRunning => !IsRunning;
@@ -64,5 +104,12 @@ namespace WoodPress.Core.Models
 
         [JsonPropertyName("enableMailpit")]
         public bool EnableMailpit { get; set; } = true;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 }
