@@ -19,35 +19,38 @@ namespace WoodPress.Core.Services
 
         public async Task<List<ProjectInfo>> ScanAllWorkspacesAsync()
         {
-            var config = _configService.GetConfig();
-            var discovered = new List<ProjectInfo>();
-            var existingProjects = _configService.LoadProjects();
-            var existingMap = new Dictionary<string, ProjectInfo>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var p in existingProjects)
+            return await Task.Run(() =>
             {
-                if (!string.IsNullOrWhiteSpace(p.ProjectDir))
+                var config = _configService.GetConfig();
+                var discovered = new List<ProjectInfo>();
+                var existingProjects = _configService.LoadProjects();
+                var existingMap = new Dictionary<string, ProjectInfo>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var p in existingProjects)
                 {
-                    existingMap[p.ProjectDir] = p;
+                    if (!string.IsNullOrWhiteSpace(p.ProjectDir))
+                    {
+                        existingMap[p.ProjectDir] = p;
+                    }
                 }
-            }
 
-            // 1. Scan Workspace Pro (G:\Workspace)
-            if (Directory.Exists(config.WorkspaceProPath))
-            {
-                ScanDirectory(config.WorkspaceProPath, "workspace", existingMap, discovered);
-            }
+                // 1. Scan Workspace Pro (G:\Workspace)
+                if (Directory.Exists(config.WorkspaceProPath))
+                {
+                    ScanDirectory(config.WorkspaceProPath, "workspace", existingMap, discovered);
+                }
 
-            // 2. Scan Learnspace (E:\E-Dev ou E:\E-Dev\WordPress)
-            if (Directory.Exists(config.LearningWorkspacePath))
-            {
-                ScanDirectory(config.LearningWorkspacePath, "learning", existingMap, discovered);
-            }
+                // 2. Scan Learnspace (E:\E-Dev ou E:\E-Dev\WordPress)
+                if (Directory.Exists(config.LearningWorkspacePath))
+                {
+                    ScanDirectory(config.LearningWorkspacePath, "learning", existingMap, discovered);
+                }
 
-            // 3. Persister la liste des projets scannés
-            _configService.SaveProjects(discovered);
+                // 3. Persister la liste des projets scannés
+                _configService.SaveProjects(discovered);
 
-            return discovered;
+                return discovered;
+            });
         }
 
         private void ScanDirectory(string rootPath, string type, Dictionary<string, ProjectInfo> existingMap, List<ProjectInfo> results)
