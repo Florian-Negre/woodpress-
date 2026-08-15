@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using WoodPress.Core.Models;
 
 namespace WoodPress.Core.Services
@@ -11,25 +12,46 @@ namespace WoodPress.Core.Services
     public class PluginItemInfo
     {
         public string Name { get; set; } = string.Empty;
-        public string Version { get; set; } = "1.0.0";
-        public string Status { get; set; } = "Non vérifié";
+        public string Slug { get; set; } = string.Empty;
+        public string LocalVersion { get; set; } = "1.0.0";
+        public string RemoteVersion { get; set; } = "—";
+        public string Status { get; set; } = "🟢 À jour";
+        public string StatusColor { get; set; } = "#22c55e";
+        public string RiskLevel { get; set; } = "Aucun";
+        public string RiskColor { get; set; } = "#22c55e";
         public string Author { get; set; } = "Inconnu";
+    }
+
+    public class ProjectAuditReport
+    {
+        public int HealthScore { get; set; } = 100;
+        public string HealthSummary { get; set; } = "Site 100% Sain";
+        public string CurrentWpVersion { get; set; } = "7.0.4";
+        public string LatestWpVersion { get; set; } = "7.0.4";
+        public bool NeedsCoreUpdate { get; set; } = false;
+        public List<PluginItemInfo> Plugins { get; set; } = new();
+        public List<PluginItemInfo> Themes { get; set; } = new();
     }
 
     public static class PluginAuditService
     {
-        public static (List<PluginItemInfo> plugins, List<PluginItemInfo> themes) AuditProject(ProjectInfo project)
+        public static async Task<ProjectAuditReport> AuditProjectAsync(ProjectInfo project)
         {
-            var plugins = new List<PluginItemInfo>();
-            var themes = new List<PluginItemInfo>();
+            var report = new ProjectAuditReport();
+            if (project == null) return report;
 
-            if (project == null) return (plugins, themes);
+            report.CurrentWpVersion = project.WpVersion;
+            report.LatestWpVersion = await WordpressOrgApiService.GetLatestWordPressVersionAsync();
+            report.NeedsCoreUpdate = CompareVersions(report.CurrentWpVersion, report.LatestWpVersion) < 0;
 
             string projectDir = project.ProjectDir ?? string.Empty;
             string containerName = $"{project.ProjectName}-wp";
 
-            // 1. Essayer via Docker Exec (WP-CLI dans le conteneur si allumé)
-            if (project.IsRunning && !string.IsNullOrEmpty(containerName))
+            var plugins = new List<PluginItemInfo>();
+            var themes = new List<PluginItemInfo>();
+
+            // 1. Audit via WP-CLI si conteneur en ligne
+            if (project.IsRunning)
             {
                 try
                 {
@@ -46,65 +68,45 @@ namespace WoodPress.Core.Services
                     {
                         if (proc != null)
                         {
-                            string json = proc.StandardOutput.ReadToEnd();
-                            string err = proc.StandardError.ReadToEnd();
-                            proc.WaitForExit(4000);
+                            string json = await proc.StandardOutput.ReadToEndAsync();
+                            await proc.WaitForExitAsync();
                             if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(json))
                             {
                                 using (var doc = JsonDocument.Parse(json))
                                 {
                                     foreach (var elem in doc.RootElement.EnumerateArray())
                                     {
-                                        string name = elem.GetProperty("name").GetString() ?? "Plugin";
+                                        string slug = elem.GetProperty("name").GetString() ?? "plugin";
+                                        string title = elem.TryGetProperty("title", out var t) ? t.GetString() ?? slug : slug;
+                                        string ver = elem.GetProperty("version").GetString() ?? "1.0.0";
+                                        string updateVer = elem.TryGetProperty("update_version", out var uv) ? uv.GetString() ?? "" : "";
                                         string status = elem.GetProperty("status").GetString() ?? "active";
-                                        string ver = elem.GetProperty("version").GetString() ?? "1.0.0";
-                                        string update = elem.TryGetProperty("update", out var u) ? u.GetString() ?? "none" : "none";
 
-                                        string statusLabel = status == "active" ? "🟢 Actif" : "⚪ Inactif";
-                                        if (update == "available") statusLabel += " (⚠️ MAJ dispo)";
+                                        var item = new PluginItemInfo
+                                        {
+                                            Name = title,
+                                            Slug = slug,
+                                            LocalVersion = ver,
+                                            Author = "WordPress.org"
+                                        };
 
-                                        plugins.Add(new PluginItemInfo { Name = name, Version = ver, Status = statusLabel, Author = "WP-CLI" });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { }
+                                        if (!string.IsNullOrEmpty(updateVer) && updateVer != ver)
+                                        {
+                                            item.RemoteVersion = updateVer;
+                                            item.Status = $"⚠️ MAJ dispo ({updateVer})";
+                                            item.StatusColor = "#f59e0b";
+                                            EvaluateRisk(item, ver, updateVer);
+                                        }
+                                        else
+                                        {
+                                            item.RemoteVersion = ver;
+                                            item.Status = status == "active" ? "🟢 Actif & À jour" : "⚪ Inactif & À jour";
+                                            item.StatusColor = "#22c55e";
+                                            item.RiskLevel = "Aucun";
+                                            item.RiskColor = "#22c55e";
+                                        }
 
-                // Scan Thèmes via WP-CLI
-                try
-                {
-                    var psiTheme = new ProcessStartInfo
-                    {
-                        FileName = "docker",
-                        Arguments = $"exec {containerName} wp theme list --format=json --allow-root",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        CreateNoWindow = true
-                    };
-                    using (var proc = Process.Start(psiTheme))
-                    {
-                        if (proc != null)
-                        {
-                            string json = proc.StandardOutput.ReadToEnd();
-                            proc.WaitForExit(4000);
-                            if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(json))
-                            {
-                                using (var doc = JsonDocument.Parse(json))
-                                {
-                                    foreach (var elem in doc.RootElement.EnumerateArray())
-                                    {
-                                        string name = elem.GetProperty("name").GetString() ?? "Theme";
-                                        string status = elem.GetProperty("status").GetString() ?? "inactive";
-                                        string ver = elem.GetProperty("version").GetString() ?? "1.0.0";
-                                        string update = elem.TryGetProperty("update", out var u) ? u.GetString() ?? "none" : "none";
-
-                                        string statusLabel = status == "active" ? "🟢 Thème Actif" : "⚪ Thème Inactif";
-                                        if (update == "available") statusLabel += " (⚠️ MAJ dispo)";
-
-                                        themes.Add(new PluginItemInfo { Name = name, Version = ver, Author = "WP-CLI", Status = statusLabel });
+                                        plugins.Add(item);
                                     }
                                 }
                             }
@@ -114,7 +116,7 @@ namespace WoodPress.Core.Services
                 catch { }
             }
 
-            // 2. Si WP-CLI n'a rien renvoyé (conteneur éteint ou sans wp-cli), scanner les disques avec DÉDUPLICATION
+            // 2. Scan des disques avec déduplication et vérification API wordpress.org
             if (plugins.Count == 0 && !string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir))
             {
                 var seenPlugins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -137,6 +139,7 @@ namespace WoodPress.Core.Services
 
                             string pName = folderName;
                             string version = "1.0.0";
+                            string author = "Inconnu";
 
                             var phpFiles = Directory.GetFiles(dir, "*.php", SearchOption.TopDirectoryOnly);
                             foreach (var file in phpFiles)
@@ -152,6 +155,9 @@ namespace WoodPress.Core.Services
                                         var matchName = Regex.Match(content, @"Plugin Name:\s*([^\r\n]+)");
                                         if (matchName.Success) pName = matchName.Groups[1].Value.Trim();
 
+                                        var matchAuth = Regex.Match(content, @"Author:\s*([^\r\n]+)");
+                                        if (matchAuth.Success) author = matchAuth.Groups[1].Value.Trim();
+
                                         break;
                                     }
                                 }
@@ -159,14 +165,51 @@ namespace WoodPress.Core.Services
                             }
 
                             seenPlugins.Add(folderName);
-                            plugins.Add(new PluginItemInfo { Name = pName, Version = version, Status = "Présent sur disque", Author = "Fichier local" });
+
+                            var item = new PluginItemInfo
+                            {
+                                Name = pName,
+                                Slug = folderName,
+                                LocalVersion = version,
+                                Author = author
+                            };
+
+                            // Comparaison en direct avec wordpress.org
+                            string? remoteVer = await WordpressOrgApiService.GetLatestPluginVersionAsync(folderName);
+                            if (!string.IsNullOrEmpty(remoteVer))
+                            {
+                                item.RemoteVersion = remoteVer;
+                                if (CompareVersions(version, remoteVer) < 0)
+                                {
+                                    item.Status = $"⚠️ MAJ dispo ({remoteVer})";
+                                    item.StatusColor = "#f59e0b";
+                                    EvaluateRisk(item, version, remoteVer);
+                                }
+                                else
+                                {
+                                    item.Status = "🟢 À jour";
+                                    item.StatusColor = "#22c55e";
+                                    item.RiskLevel = "Aucun";
+                                    item.RiskColor = "#22c55e";
+                                }
+                            }
+                            else
+                            {
+                                item.Status = "⚪ Extension Personnalisée";
+                                item.StatusColor = "#94a3b8";
+                                item.RemoteVersion = "Interne";
+                                item.RiskLevel = "Non audité";
+                                item.RiskColor = "#94a3b8";
+                            }
+
+                            plugins.Add(item);
                         }
-                        break; // S'arrêter au premier dossier de plugins trouvé pour éviter les doublons
+                        break;
                     }
                 }
             }
 
-            // 3. Scan des thèmes sur disque si non trouvés via WP-CLI
+            // 3. Scan des thèmes
             if (themes.Count == 0 && !string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir))
             {
                 var seenThemes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -210,16 +253,112 @@ namespace WoodPress.Core.Services
                             }
 
                             seenThemes.Add(folderName);
-                            themes.Add(new PluginItemInfo { Name = tName, Version = version, Author = author, Status = "Présent sur disque" });
+
+                            var item = new PluginItemInfo
+                            {
+                                Name = tName,
+                                Slug = folderName,
+                                LocalVersion = version,
+                                Author = author
+                            };
+
+                            string? remoteVer = await WordpressOrgApiService.GetLatestThemeVersionAsync(folderName);
+                            if (!string.IsNullOrEmpty(remoteVer))
+                            {
+                                item.RemoteVersion = remoteVer;
+                                if (CompareVersions(version, remoteVer) < 0)
+                                {
+                                    item.Status = $"⚠️ MAJ dispo ({remoteVer})";
+                                    item.StatusColor = "#f59e0b";
+                                    EvaluateRisk(item, version, remoteVer);
+                                }
+                                else
+                                {
+                                    item.Status = "🟢 À jour";
+                                    item.StatusColor = "#22c55e";
+                                    item.RiskLevel = "Aucun";
+                                    item.RiskColor = "#22c55e";
+                                }
+                            }
+                            else
+                            {
+                                item.Status = "⚪ Thème Personnalisé";
+                                item.StatusColor = "#94a3b8";
+                                item.RemoteVersion = "Interne";
+                                item.RiskLevel = "Non audité";
+                                item.RiskColor = "#94a3b8";
+                            }
+
+                            themes.Add(item);
                         }
-                        break; // S'arrêter au premier dossier de thèmes trouvé pour éviter les doublons
+                        break;
                     }
                 }
             }
 
-            // AUCUNE FAUSSE EXTENSION N'EST INJECTÉE ICI.
+            report.Plugins = plugins;
+            report.Themes = themes;
 
-            return (plugins, themes);
+            // Calcul du Score de Santé
+            int totalItems = plugins.Count + themes.Count + (report.NeedsCoreUpdate ? 1 : 0);
+            int outdatedItems = 0;
+
+            foreach (var p in plugins) if (p.Status.Contains("MAJ dispo")) outdatedItems++;
+            foreach (var t in themes) if (t.Status.Contains("MAJ dispo")) outdatedItems++;
+            if (report.NeedsCoreUpdate) outdatedItems++;
+
+            if (totalItems > 0)
+            {
+                report.HealthScore = Math.Max(0, 100 - (int)((double)outdatedItems / totalItems * 100));
+            }
+            else
+            {
+                report.HealthScore = 100;
+            }
+
+            if (outdatedItems == 0)
+            {
+                report.HealthSummary = $"Site 100% Sain & À jour 🛡️";
+            }
+            else
+            {
+                report.HealthSummary = $"{outdatedItems} mise(s) à jour recommandée(s) ⚠️";
+            }
+
+            return report;
+        }
+
+        private static void EvaluateRisk(PluginItemInfo item, string localVer, string remoteVer)
+        {
+            var lParts = localVer.Split('.');
+            var rParts = remoteVer.Split('.');
+
+            if (lParts.Length > 0 && rParts.Length > 0 && lParts[0] != rParts[0])
+            {
+                item.RiskLevel = "🔴 Risque Majeur (Saut de version)";
+                item.RiskColor = "#ef4444";
+            }
+            else
+            {
+                item.RiskLevel = "🟡 Mineur / Sécurité";
+                item.RiskColor = "#f59e0b";
+            }
+        }
+
+        private static int CompareVersions(string v1, string v2)
+        {
+            try
+            {
+                var clean1 = Regex.Replace(v1, @"[^\d\.]", "");
+                var clean2 = Regex.Replace(v2, @"[^\d\.]", "");
+                var ver1 = new Version(clean1.Contains('.') ? clean1 : clean1 + ".0");
+                var ver2 = new Version(clean2.Contains('.') ? clean2 : clean2 + ".0");
+                return ver1.CompareTo(ver2);
+            }
+            catch
+            {
+                return string.Compare(v1, v2, StringComparison.OrdinalIgnoreCase);
+            }
         }
     }
 }

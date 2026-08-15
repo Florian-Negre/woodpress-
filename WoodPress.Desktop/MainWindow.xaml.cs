@@ -37,6 +37,15 @@ namespace WoodPress.Desktop
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            _ = Task.Run(async () =>
+            {
+                string latest = await WordpressOrgApiService.GetLatestWordPressVersionAsync();
+                Dispatcher.Invoke(() =>
+                {
+                    TxtLatestWpBadge.Text = $"WP Officiel : v{latest} 🟢";
+                });
+            });
+
             await RefreshProjectsAsync();
         }
 

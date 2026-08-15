@@ -1,87 +1,90 @@
 <Window x:Class="WoodPress.Desktop.AuditWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Audit &amp; Détails du Projet — WoodPress" 
-        Height="580" Width="720"
+        Title="Audit &amp; Santé du Site — WoodPress" 
+        Height="620" Width="840"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="CanResize"
         Background="{StaticResource BgDark}">
-
-    <Window.Resources>
-        <!-- Style clair et lisible des en-têtes DataGrid -->
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#334155"/>
-            <Setter Property="Foreground" Value="#ffffff"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-        </Style>
-
-        <Style TargetType="DataGridRow">
-            <Setter Property="Background" Value="#1e293b"/>
-            <Setter Property="Foreground" Value="#f8fafc"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#334155"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style TargetType="DataGridCell">
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="DataGridCell">
-                        <Border Padding="{TemplateBinding Padding}" Background="Transparent">
-                            <ContentPresenter VerticalAlignment="Center" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Titre -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock x:Name="TxtTitle" Text="🔍 Audit des Plugins &amp; Thèmes" FontSize="20" FontWeight="Bold" Foreground="{StaticResource AccentGreen}"/>
-            <TextBlock x:Name="TxtSubtitle" Text="Analyse de la santé et des versions WordPress" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
-        </StackPanel>
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <StackPanel>
+                <TextBlock x:Name="TxtTitle" Text="🔍 Audit du Site" FontSize="20" FontWeight="Bold" Foreground="{StaticResource AccentGreen}"/>
+                <TextBlock x:Name="TxtSubtitle" Text="Analyse en cours..." FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
+            </StackPanel>
 
-        <!-- Contenu des onglets (Plugins / Thèmes) avec style sombre élégant -->
-        <TabControl Grid.Row="1" Background="#0f172a" BorderBrush="{StaticResource BorderColor}">
-            <!-- TAB PLUGINS -->
-            <TabItem Header="🧩 Extension(s) Plugins" Padding="14,8">
-                <DataGrid x:Name="GridPlugins" AutoGenerateColumns="False" IsReadOnly="True" Background="#0f172a" Foreground="#f8fafc" GridLinesVisibility="Horizontal" HeadersVisibility="Column" BorderThickness="0" Margin="0,8,0,0">
+            <!-- Badge Score de Santé -->
+            <Border Grid.Column="1" x:Name="BrdHealthScore" Background="#1e293b" BorderBrush="{StaticResource AccentGreen}" BorderThickness="1.5" CornerRadius="10" Padding="14,8">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Santé : " Foreground="{StaticResource TextSecondary}" FontSize="13" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="TxtHealthScore" Text="100% 🛡️" Foreground="{StaticResource AccentGreen}" FontSize="15" FontWeight="Bold"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Bannière Alerte Mise à Jour Core WordPress -->
+        <Border Grid.Row="1" x:Name="BrdCoreUpdate" Background="#332200" BorderBrush="#f59e0b" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,14" Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtCoreUpdateMsg" Text="⚡ Une nouvelle version officielle de WordPress est disponible !" Foreground="#fbbf24" FontWeight="Bold" FontSize="13"/>
+                    <TextBlock Text="Mise à jour recommandée pour bénéficier des derniers correctifs de sécurité et performances." Foreground="#d1d5db" FontSize="11" Margin="0,2,0,0"/>
+                </StackPanel>
+                <Button Grid.Column="1" x:Name="BtnUpdateWpCore" Content="⚡ Mettre à jour WordPress" Click="BtnUpdateWpCore_Click" Background="#d97706" Padding="12,6" FontWeight="Bold"/>
+            </Grid>
+        </Border>
+
+        <!-- Onglets Extensions & Thèmes -->
+        <TabControl Grid.Row="2">
+            <TabItem Header="🧩 Extensions (Plugins)">
+                <DataGrid x:Name="GridPlugins" AutoGenerateColumns="False" IsReadOnly="True" 
+                          Background="#1e293b" RowBackground="#0f172a" AlternatingRowBackground="#1e293b"
+                          Foreground="#ffffff" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="#334155" BorderBrush="#334155" FontSize="13">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Extension" Binding="{Binding Name}" Width="2*"/>
-                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*"/>
-                        <DataGridTextColumn Header="Statut / Risque" Binding="{Binding Status}" Width="1.5*"/>
+                        <DataGridTextColumn Header="Version Locale" Binding="{Binding LocalVersion}" Width="110"/>
+                        <DataGridTextColumn Header="Dernière WP.org" Binding="{Binding RemoteVersion}" Width="120"/>
+                        <DataGridTextColumn Header="Statut &amp; Santé" Binding="{Binding Status}" Width="1.8*"/>
+                        <DataGridTextColumn Header="Niveau de Risque" Binding="{Binding RiskLevel}" Width="1.5*"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </TabItem>
 
-            <!-- TAB THÈMES -->
-            <TabItem Header="🎨 Thème(s)" Padding="14,8">
-                <DataGrid x:Name="GridThemes" AutoGenerateColumns="False" IsReadOnly="True" Background="#0f172a" Foreground="#f8fafc" GridLinesVisibility="Horizontal" HeadersVisibility="Column" BorderThickness="0" Margin="0,8,0,0">
+            <TabItem Header="🎨 Thèmes">
+                <DataGrid x:Name="GridThemes" AutoGenerateColumns="False" IsReadOnly="True" 
+                          Background="#1e293b" RowBackground="#0f172a" AlternatingRowBackground="#1e293b"
+                          Foreground="#ffffff" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="#334155" BorderBrush="#334155" FontSize="13">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Thème" Binding="{Binding Name}" Width="2*"/>
-                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*"/>
-                        <DataGridTextColumn Header="Auteur" Binding="{Binding Author}" Width="1.5*"/>
+                        <DataGridTextColumn Header="Version Locale" Binding="{Binding LocalVersion}" Width="110"/>
+                        <DataGridTextColumn Header="Dernière WP.org" Binding="{Binding RemoteVersion}" Width="120"/>
+                        <DataGridTextColumn Header="Statut &amp; Santé" Binding="{Binding Status}" Width="1.8*"/>
+                        <DataGridTextColumn Header="Auteur" Binding="{Binding Author}" Width="1.2*"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </TabItem>
         </TabControl>
 
         <!-- Bouton Fermer -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button Content="Fermer" Click="BtnClose_Click" Background="#334155" Padding="16,8"/>
         </StackPanel>
     </Grid>
