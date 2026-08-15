@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using Microsoft.Win32;
 using WoodPress.Core.Models;
 using WoodPress.Core.Services;
@@ -41,14 +42,37 @@ namespace WoodPress.Desktop
 
         private async Task RefreshProjectsAsync()
         {
-            TxtStatus.Text = "Scan et inspection des conteneurs Docker en cours...";
             try
             {
+                // 1. Vérification globale de l'état du daemon Docker
+                bool isDockerRunning = await DockerService.IsDockerRunningAsync();
+                if (isDockerRunning)
+                {
+                    TxtDockerGlobalStatus.Text = "🟢 Docker allumé";
+                    TxtDockerGlobalStatus.Foreground = new SolidColorBrush(Color.FromRgb(34, 197, 94)); // Vert #22c55e
+                    BtnStartDocker.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    TxtDockerGlobalStatus.Text = "🔴 Docker éteint";
+                    TxtDockerGlobalStatus.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Rouge #ef4444
+                    BtnStartDocker.Visibility = Visibility.Visible;
+                }
+
+                // 2. Scan des projets et conteneurs
                 _allProjects = await _scanner.ScanAllWorkspacesAsync();
 
                 // Inspection du statut Docker temps réel pour chaque projet
                 foreach (var p in _allProjects)
                 {
+                    if (!isDockerRunning)
+                    {
+                        p.DockerStatus = "🔴 Arrêté";
+                        p.DockerStatusColor = "#ef4444";
+                        p.IsRunning = false;
+                        continue;
+                    }
+
                     string containerName = $"{p.ProjectName}-wp";
                     string status = await DockerService.GetContainerStatusAsync(containerName);
                     if (status == "running")
@@ -72,11 +96,50 @@ namespace WoodPress.Desktop
                 }
 
                 ApplyFilter();
-                TxtStatus.Text = "Prêt — Statuts Docker temps réel et format .AZF actifs";
             }
             catch (Exception ex)
             {
-                TxtStatus.Text = $"Erreur lors du scan : {ex.Message}";
+                TxtDockerGlobalStatus.Text = $"Erreur lors du scan : {ex.Message}";
+            }
+        }
+
+        private async void BtnStartDocker_Click(object sender, RoutedEventArgs e)
+        {
+            BtnStartDocker.IsEnabled = false;
+            BtnStartDocker.Content = "⏳ Lancement de Docker Desktop...";
+            TxtDockerGlobalStatus.Text = "🟡 Démarrage de Docker Desktop en cours...";
+            TxtDockerGlobalStatus.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // Jaune #f59e0b
+
+            try
+            {
+                bool launched = await DockerService.LaunchDockerDesktopAsync();
+                if (!launched)
+                {
+                    MessageBox.Show("Impossible de localiser 'Docker Desktop.exe'. Veuillez démarrer Docker manuellement.", "Docker Introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    BtnStartDocker.IsEnabled = true;
+                    BtnStartDocker.Content = "🚀 Démarrer Docker Desktop";
+                    return;
+                }
+
+                // Attente active jusqu'à ce que Docker réponde (max 45 secondes)
+                for (int i = 0; i < 15; i++)
+                {
+                    await Task.Delay(3000);
+                    if (await DockerService.IsDockerRunningAsync())
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erreur lors du lancement de Docker : {ex.Message}", "Erreur", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnStartDocker.IsEnabled = true;
+                BtnStartDocker.Content = "🚀 Démarrer Docker Desktop";
+                await RefreshProjectsAsync();
             }
         }
 
@@ -105,7 +168,6 @@ namespace WoodPress.Desktop
             var win = new CreateProjectWindow { Owner = this };
             if (win.ShowDialog() == true && win.CreatedProject != null)
             {
-                TxtStatus.Text = $"Nouveau projet créé : {win.CreatedProject.ClientName} !";
                 MessageBox.Show($"Le projet {win.CreatedProject.ClientName} a été créé dans {win.CreatedProject.ProjectDir} !\n\nPort HTTP : :{win.CreatedProject.HttpPort}", "Projet Créé avec Succès", MessageBoxButton.OK, MessageBoxImage.Information);
                 await RefreshProjectsAsync();
             }
@@ -128,16 +190,11 @@ namespace WoodPress.Desktop
                 string originalText = btn.Content.ToString() ?? "▶️ Démarrer";
                 btn.IsEnabled = false;
                 btn.Content = "⏳ Démarrage...";
-                TxtStatus.Text = $"Démarrage des conteneurs pour {project.ClientName}...";
 
                 try
                 {
                     bool ok = await DockerService.StartContainersAsync(project.ComposeDir);
-                    if (ok)
-                    {
-                        TxtStatus.Text = $"Site {project.ClientName} démarré avec succès !";
-                    }
-                    else
+                    if (!ok)
                     {
                         MessageBox.Show($"Erreur lors du démarrage Docker pour {project.ClientName}.", "Erreur Docker", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
@@ -158,15 +215,10 @@ namespace WoodPress.Desktop
                 string originalText = btn.Content.ToString() ?? "⏹️ Stop";
                 btn.IsEnabled = false;
                 btn.Content = "⏳ Arrêt...";
-                TxtStatus.Text = $"Arrêt des conteneurs pour {project.ClientName}...";
 
                 try
                 {
-                    bool ok = await DockerService.StopContainersAsync(project.ComposeDir);
-                    if (ok)
-                    {
-                        TxtStatus.Text = $"Conteneurs pour {project.ClientName} arrêtés.";
-                    }
+                    await DockerService.StopContainersAsync(project.ComposeDir);
                 }
                 finally
                 {
@@ -219,7 +271,6 @@ namespace WoodPress.Desktop
         {
             if (sender is FrameworkElement elem && elem.Tag is ProjectInfo project)
             {
-                TxtStatus.Text = $"Réparation de la BDD pour {project.ClientName}...";
                 string dbContainer = $"{project.ProjectName}-db";
                 try
                 {
@@ -252,7 +303,6 @@ namespace WoodPress.Desktop
                 var result = MessageBox.Show($"Êtes-vous sûr de vouloir supprimer le projet '{project.ClientName}' ?\n\nCela arrêtera les conteneurs Docker associés.", "Confirmation de Suppression", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result == MessageBoxResult.Yes)
                 {
-                    TxtStatus.Text = $"Arrêt et nettoyage du projet {project.ClientName}...";
                     await DockerService.StopContainersAsync(project.ComposeDir);
                     _allProjects.Remove(project);
                     ApplyFilter();
@@ -265,26 +315,11 @@ namespace WoodPress.Desktop
         {
             if (sender is FrameworkElement elem && elem.Tag is ProjectInfo project)
             {
-                var config = _configService.LoadConfig();
+                var config = _configService.GetConfig();
                 bool ok = IdeLauncherService.OpenProjectInIde(project.ProjectDir, config.PreferredIde, config.CustomIdePath);
-                if (ok)
+                if (!ok)
                 {
-                    TxtStatus.Text = $"Projet {project.ClientName} ouvert dans {config.PreferredIde} !";
-                }
-                else
-                {
-                    MessageBox.Show("Impossible d'ouvrir le projet dans l'IDE sélectionné.", "Erreur IDE", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-            }
-        }
-
-        private void BtnFolder_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is FrameworkElement elem && elem.Tag is ProjectInfo project)
-            {
-                if (Directory.Exists(project.ProjectDir))
-                {
-                    System.Diagnostics.Process.Start("explorer.exe", $"\"{project.ProjectDir}\"");
+                    MessageBox.Show($"Impossible d'ouvrir l'IDE sélectionné ({config.PreferredIde}). Vérifiez qu'il est bien installé.", "Erreur IDE", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
         }
@@ -307,19 +342,64 @@ namespace WoodPress.Desktop
             }
         }
 
+        private void BtnFolder_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement elem && elem.Tag is ProjectInfo project)
+            {
+                if (Directory.Exists(project.ProjectDir))
+                {
+                    System.Diagnostics.Process.Start("explorer.exe", $"\"{project.ProjectDir}\"");
+                }
+                else
+                {
+                    MessageBox.Show("Le répertoire du projet est introuvable sur le disque.", "Erreur Dossier", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+        }
+
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
-            var config = _configService.LoadConfig();
-            string current = config.PreferredIde ?? "code";
+            var config = _configService.GetConfig();
+            var dialog = new Window
+            {
+                Title = "Paramètres — Choix de l'IDE par Défaut",
+                Width = 380,
+                Height = 220,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                Background = (SolidColorBrush)FindResource("BgDark")
+            };
 
-            // Permet de basculer de manière fluide entre les IDE principaux
-            string[] ides = new[] { "code", "cursor", "phpstorm", "windsurf" };
-            int idx = Array.IndexOf(ides, current);
-            string nextIde = ides[(idx + 1) % ides.Length];
+            var stack = new StackPanel { Margin = new Thickness(20) };
+            var lbl = new TextBlock { Text = "Choisissez votre IDE de développement :", Foreground = (SolidColorBrush)FindResource("TextPrimary"), Margin = new Thickness(0, 0, 0, 10), FontWeight = FontWeights.SemiBold };
+            var combo = new ComboBox { Margin = new Thickness(0, 0, 0, 16), Padding = new Thickness(6) };
+            combo.Items.Add("VS Code (code)");
+            combo.Items.Add("Cursor (cursor)");
+            combo.Items.Add("PhpStorm (phpstorm64.exe)");
+            combo.Items.Add("Windsurf (windsurf)");
 
-            config.PreferredIde = nextIde;
-            _configService.SaveConfig(config);
-            MessageBox.Show($"IDE préféré basculé sur : {nextIde.ToUpper()}", "Paramètres Enregistrés", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (config.PreferredIde == "cursor") combo.SelectedIndex = 1;
+            else if (config.PreferredIde == "phpstorm") combo.SelectedIndex = 2;
+            else if (config.PreferredIde == "windsurf") combo.SelectedIndex = 3;
+            else combo.SelectedIndex = 0;
+
+            var btnSave = new Button { Content = "Enregistrer", Background = (SolidColorBrush)FindResource("AccentGreen"), Padding = new Thickness(12, 6, 12, 6) };
+            btnSave.Click += (s, ev) =>
+            {
+                if (combo.SelectedIndex == 1) config.PreferredIde = "cursor";
+                else if (combo.SelectedIndex == 2) config.PreferredIde = "phpstorm";
+                else if (combo.SelectedIndex == 3) config.PreferredIde = "windsurf";
+                else config.PreferredIde = "code";
+
+                _configService.SaveConfig(config);
+                dialog.Close();
+            };
+
+            stack.Children.Add(lbl);
+            stack.Children.Add(combo);
+            stack.Children.Add(btnSave);
+            dialog.Content = stack;
+            dialog.ShowDialog();
         }
 
         private async void BtnImportAzf_Click(object sender, RoutedEventArgs e)
@@ -335,7 +415,6 @@ namespace WoodPress.Desktop
                 string targetBaseDir = @"G:\Workspace";
                 if (TabLearning.IsChecked == true) targetBaseDir = @"E:\E-Dev\WordPress";
 
-                TxtStatus.Text = "Importation et extraction du projet en cours...";
                 try
                 {
                     var imported = await UniversalImportService.ImportProjectArchiveAsync(dialog.FileName, targetBaseDir);

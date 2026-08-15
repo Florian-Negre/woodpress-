@@ -40,6 +40,34 @@ namespace WoodPress.Core.Services
         }
 
         /// <summary>
+        /// Lance l'application Docker Desktop sous Windows
+        /// </summary>
+        public static async Task<bool> LaunchDockerDesktopAsync()
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    string dockerDesktopPath = @"C:\Program Files\Docker\Docker\Docker Desktop.exe";
+                    if (File.Exists(dockerDesktopPath))
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = dockerDesktopPath,
+                            UseShellExecute = true
+                        });
+                        return true;
+                    }
+                    return false;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+        }
+
+        /// <summary>
         /// Obtient le statut en temps réel d'un conteneur ("running", "stopped", "starting", "not_linked")
         /// </summary>
         public static async Task<string> GetContainerStatusAsync(string containerName)
