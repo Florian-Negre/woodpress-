@@ -1,0 +1,61 @@
+<Window x:Class="WoodPress.Desktop.CreateUserDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Ajouter un Utilisateur WordPress — WoodPress" 
+        Height="420" Width="460"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BgDark}">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Titre -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="➕ Ajouter un Utilisateur" FontSize="18" FontWeight="Bold" Foreground="{StaticResource AccentGreen}"/>
+            <TextBlock Text="Crée un nouveau compte utilisateur dans la base WordPress" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,3,0,0"/>
+        </StackPanel>
+
+        <!-- Formulaire -->
+        <StackPanel Grid.Row="1">
+            <TextBlock Text="Identifiant (Login) :" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+            <TextBox x:Name="TxtLogin" Padding="8,6" Margin="0,0,0,10" FontSize="13"/>
+
+            <TextBlock Text="Adresse Email :" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+            <TextBox x:Name="TxtEmail" Padding="8,6" Margin="0,0,0,10" FontSize="13"/>
+
+            <TextBlock Text="Rôle :" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+            <ComboBox x:Name="CboRole" Padding="8,6" Margin="0,0,0,10">
+                <ComboBoxItem Content="Administrateur (administrator)" IsSelected="True" Tag="administrator"/>
+                <ComboBoxItem Content="Éditeur (editor)" Tag="editor"/>
+                <ComboBoxItem Content="Auteur (author)" Tag="author"/>
+                <ComboBoxItem Content="Client / Abonné (subscriber)" Tag="subscriber"/>
+            </ComboBox>
+
+            <TextBlock Text="Mot de passe :" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+            <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TxtPassword" TextChanged="TxtPassword_TextChanged" Padding="8,6" FontSize="13" FontFamily="Consolas"/>
+                <Button Grid.Column="1" Content="🎲 Hasard" Click="BtnGenerate_Click" Background="#334155" Padding="10,5" Margin="6,0,0,0"/>
+            </Grid>
+
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Sécurité : " Foreground="{StaticResource TextSecondary}" FontSize="11"/>
+                <TextBlock x:Name="TxtStrength" Text="Fort 🟢" Foreground="{StaticResource AccentGreen}" FontWeight="Bold" FontSize="11"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Boutons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Annuler" Click="BtnCancel_Click" Background="#334155" Margin="0,0,8,0"/>
+            <Button Content="➕ Créer l'Utilisateur" Click="BtnSubmit_Click" Background="{StaticResource AccentGreen}" FontWeight="Bold"/>
+        </StackPanel>
+    </Grid>
+</Window>

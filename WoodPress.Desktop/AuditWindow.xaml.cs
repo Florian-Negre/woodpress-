@@ -17,7 +17,7 @@ namespace WoodPress.Desktop
         {
             InitializeComponent();
             _project = project;
-            TxtTitle.Text = $"🔍 Audit & Santé : {project.ClientName}";
+            TxtTitle.Text = $"🔍 Audit & Gestion : {project.ClientName}";
             TxtSubtitle.Text = $"Dossier : {project.ProjectDir} | Version actuelle : {project.WpVersion} — Analyse en cours...";
 
             Loaded += AuditWindow_Loaded;
@@ -62,10 +62,112 @@ namespace WoodPress.Desktop
                 }
 
                 TxtSubtitle.Text = $"Dossier : {_project.ProjectDir} | WP actuel : {_report.CurrentWpVersion} (Dernier officiel : {_report.LatestWpVersion}) | {_report.HealthSummary}";
+
+                // Chargement des utilisateurs WordPress
+                await LoadUsersAsync();
             }
             catch (Exception ex)
             {
                 TxtSubtitle.Text = $"Erreur lors de l'audit : {ex.Message}";
+            }
+        }
+
+        private async Task LoadUsersAsync()
+        {
+            if (!_project.IsRunning)
+            {
+                GridUsers.ItemsSource = null;
+                return;
+            }
+
+            var users = await WordpressUserService.GetUsersAsync(_project);
+            GridUsers.ItemsSource = users;
+        }
+
+        private async void BtnRefreshUsers_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadUsersAsync();
+        }
+
+        private async void BtnAddUser_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_project.IsRunning)
+            {
+                MessageBox.Show("Le conteneur du site doit être démarré pour ajouter un utilisateur.", "Conteneur Arrêté", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var dlg = new CreateUserDialog { Owner = this };
+            if (dlg.ShowDialog() == true)
+            {
+                var (ok, msg) = await WordpressUserService.CreateUserAsync(_project, dlg.Login, dlg.Email, dlg.Password, dlg.Role);
+                if (ok)
+                {
+                    MessageBox.Show(msg, "Utilisateur Créé", MessageBoxButton.OK, MessageBoxImage.Information);
+                    await LoadUsersAsync();
+                }
+                else
+                {
+                    MessageBox.Show($"Échec de la création :\n{msg}", "Erreur", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private async void BtnResetPassword_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement elem && elem.Tag is WordpressUser user)
+            {
+                if (!_project.IsRunning)
+                {
+                    MessageBox.Show("Le conteneur du site doit être démarré pour modifier le mot de passe.", "Conteneur Arrêté", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var dlg = new ResetPasswordDialog(user.Login) { Owner = this };
+                if (dlg.ShowDialog() == true)
+                {
+                    var (ok, msg) = await WordpressUserService.ResetPasswordAsync(_project, user.Id, dlg.NewPassword);
+                    if (ok)
+                    {
+                        MessageBox.Show($"Le mot de passe pour '{user.Login}' a été mis à jour avec succès !\n\nNouveau mot de passe : {dlg.NewPassword}", "Mot de Passe Réinitialisé", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show($"Échec de la réinitialisation :\n{msg}", "Erreur", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+        }
+
+        private async void BtnDeleteUser_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement elem && elem.Tag is WordpressUser user)
+            {
+                if (!_project.IsRunning)
+                {
+                    MessageBox.Show("Le conteneur du site doit être démarré pour supprimer un utilisateur.", "Conteneur Arrêté", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var confirm = MessageBox.Show(
+                    $"Êtes-vous sûr de vouloir supprimer définitivement l'utilisateur '{user.Login}' (ID: {user.Id}) ?\n\nSes contenus seront réassignés à l'administrateur principal.",
+                    "Confirmation de Suppression Utilisateur",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning
+                );
+
+                if (confirm != MessageBoxResult.Yes) return;
+
+                var (ok, msg) = await WordpressUserService.DeleteUserAsync(_project, user.Id);
+                if (ok)
+                {
+                    MessageBox.Show(msg, "Utilisateur Supprimé", MessageBoxButton.OK, MessageBoxImage.Information);
+                    await LoadUsersAsync();
+                }
+                else
+                {
+                    MessageBox.Show($"Échec de la suppression :\n{msg}", "Erreur", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
