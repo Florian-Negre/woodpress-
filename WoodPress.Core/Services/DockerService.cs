@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace WoodPress.Core.Services
@@ -104,6 +105,75 @@ namespace WoodPress.Core.Services
                 {
                     return "stopped";
                 }
+            });
+        }
+
+        /// <summary>
+        /// Trouve le nom réel d'un conteneur pour un service donné via docker compose ps
+        /// </summary>
+        public static async Task<string> GetServiceContainerNameAsync(string composeDir, string serviceName = "wordpress")
+        {
+            if (string.IsNullOrWhiteSpace(composeDir) || !Directory.Exists(composeDir)) return string.Empty;
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "docker",
+                        Arguments = "compose ps --format json",
+                        WorkingDirectory = composeDir,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    using (var proc = Process.Start(psi))
+                    {
+                        if (proc == null) return string.Empty;
+                        string json = proc.StandardOutput.ReadToEnd();
+                        proc.WaitForExit(3000);
+                        if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(json))
+                        {
+                            // Docker Compose JSON peut être une liste ou des objets par ligne
+                            var lines = json.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var line in lines)
+                            {
+                                try
+                                {
+                                    using (var doc = JsonDocument.Parse(line.Trim()))
+                                    {
+                                        var root = doc.RootElement;
+                                        if (root.ValueKind == JsonValueKind.Array)
+                                        {
+                                            foreach (var item in root.EnumerateArray())
+                                            {
+                                                string sName = item.TryGetProperty("Service", out var s) ? s.GetString() ?? "" : "";
+                                                if (sName.Equals(serviceName, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    return item.TryGetProperty("Name", out var n) ? n.GetString() ?? "" : "";
+                                                }
+                                            }
+                                        }
+                                        else if (root.ValueKind == JsonValueKind.Object)
+                                        {
+                                            string sName = root.TryGetProperty("Service", out var s) ? s.GetString() ?? "" : "";
+                                            if (sName.Equals(serviceName, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                return root.TryGetProperty("Name", out var n) ? n.GetString() ?? "" : "";
+                                            }
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                return string.Empty;
             });
         }
 

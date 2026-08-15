@@ -64,9 +64,9 @@ namespace WoodPress.Core.Services
         {
             if (string.IsNullOrEmpty(baseDir))
             {
-                baseDir = AppContext.BaseDirectory;
+                baseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WoodPress");
             }
-            _dataDir = Path.Combine(baseDir, "data");
+            _dataDir = baseDir;
             _configFile = Path.Combine(_dataDir, "config.json");
             _projectsFile = Path.Combine(_dataDir, "projects.json");
 
