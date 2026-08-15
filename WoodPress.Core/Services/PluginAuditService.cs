@@ -12,8 +12,8 @@ namespace WoodPress.Core.Services
     {
         public string Name { get; set; } = string.Empty;
         public string Version { get; set; } = "1.0.0";
-        public string Status { get; set; } = "🟢 À jour";
-        public string Author { get; set; } = "Codinflo / WordPress";
+        public string Status { get; set; } = "Non vérifié";
+        public string Author { get; set; } = "Inconnu";
     }
 
     public static class PluginAuditService
@@ -23,18 +23,20 @@ namespace WoodPress.Core.Services
             var plugins = new List<PluginItemInfo>();
             var themes = new List<PluginItemInfo>();
 
-            string projectDir = project?.ProjectDir ?? string.Empty;
-            string containerName = project != null ? $"{project.ProjectName}-wp" : string.Empty;
+            if (project == null) return (plugins, themes);
 
-            // 1. Essayer via Docker Exec (WP-CLI dans le conteneur)
-            if (!string.IsNullOrEmpty(containerName))
+            string projectDir = project.ProjectDir ?? string.Empty;
+            string containerName = $"{project.ProjectName}-wp";
+
+            // 1. Essayer via Docker Exec (WP-CLI dans le conteneur si allumé)
+            if (project.IsRunning && !string.IsNullOrEmpty(containerName))
             {
                 try
                 {
                     var psi = new ProcessStartInfo
                     {
                         FileName = "docker",
-                        Arguments = $"exec {containerName} wp plugin list --format=json",
+                        Arguments = $"exec {containerName} wp plugin list --format=json --allow-root",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -45,7 +47,8 @@ namespace WoodPress.Core.Services
                         if (proc != null)
                         {
                             string json = proc.StandardOutput.ReadToEnd();
-                            proc.WaitForExit(3000);
+                            string err = proc.StandardError.ReadToEnd();
+                            proc.WaitForExit(4000);
                             if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(json))
                             {
                                 using (var doc = JsonDocument.Parse(json))
@@ -60,7 +63,48 @@ namespace WoodPress.Core.Services
                                         string statusLabel = status == "active" ? "🟢 Actif" : "⚪ Inactif";
                                         if (update == "available") statusLabel += " (⚠️ MAJ dispo)";
 
-                                        plugins.Add(new PluginItemInfo { Name = name, Version = ver, Status = statusLabel });
+                                        plugins.Add(new PluginItemInfo { Name = name, Version = ver, Status = statusLabel, Author = "WP-CLI" });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // Scan Thèmes via WP-CLI
+                try
+                {
+                    var psiTheme = new ProcessStartInfo
+                    {
+                        FileName = "docker",
+                        Arguments = $"exec {containerName} wp theme list --format=json --allow-root",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    using (var proc = Process.Start(psiTheme))
+                    {
+                        if (proc != null)
+                        {
+                            string json = proc.StandardOutput.ReadToEnd();
+                            proc.WaitForExit(4000);
+                            if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(json))
+                            {
+                                using (var doc = JsonDocument.Parse(json))
+                                {
+                                    foreach (var elem in doc.RootElement.EnumerateArray())
+                                    {
+                                        string name = elem.GetProperty("name").GetString() ?? "Theme";
+                                        string status = elem.GetProperty("status").GetString() ?? "inactive";
+                                        string ver = elem.GetProperty("version").GetString() ?? "1.0.0";
+                                        string update = elem.TryGetProperty("update", out var u) ? u.GetString() ?? "none" : "none";
+
+                                        string statusLabel = status == "active" ? "🟢 Thème Actif" : "⚪ Thème Inactif";
+                                        if (update == "available") statusLabel += " (⚠️ MAJ dispo)";
+
+                                        themes.Add(new PluginItemInfo { Name = name, Version = ver, Author = "WP-CLI", Status = statusLabel });
                                     }
                                 }
                             }
@@ -70,9 +114,11 @@ namespace WoodPress.Core.Services
                 catch { }
             }
 
-            // 2. Si aucun plugin trouvé via Docker, scanner les disques locaux (wp-content / wp-content-mirror)
+            // 2. Si WP-CLI n'a rien renvoyé (conteneur éteint ou sans wp-cli), scanner les disques avec DÉDUPLICATION
             if (plugins.Count == 0 && !string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir))
             {
+                var seenPlugins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                 var possiblePluginDirs = new[]
                 {
                     Path.Combine(projectDir, "wp-content", "plugins"),
@@ -86,7 +132,10 @@ namespace WoodPress.Core.Services
                     {
                         foreach (var dir in Directory.GetDirectories(pDir))
                         {
-                            string pName = Path.GetFileName(dir);
+                            string folderName = Path.GetFileName(dir);
+                            if (seenPlugins.Contains(folderName)) continue;
+
+                            string pName = folderName;
                             string version = "1.0.0";
 
                             var phpFiles = Directory.GetFiles(dir, "*.php", SearchOption.TopDirectoryOnly);
@@ -109,15 +158,19 @@ namespace WoodPress.Core.Services
                                 catch { }
                             }
 
-                            plugins.Add(new PluginItemInfo { Name = pName, Version = version, Status = "🟢 Présent sur disque" });
+                            seenPlugins.Add(folderName);
+                            plugins.Add(new PluginItemInfo { Name = pName, Version = version, Status = "Présent sur disque", Author = "Fichier local" });
                         }
+                        break; // S'arrêter au premier dossier de plugins trouvé pour éviter les doublons
                     }
                 }
             }
 
-            // 3. Scan des thèmes
-            if (!string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir))
+            // 3. Scan des thèmes sur disque si non trouvés via WP-CLI
+            if (themes.Count == 0 && !string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir))
             {
+                var seenThemes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                 var possibleThemeDirs = new[]
                 {
                     Path.Combine(projectDir, "wp-content", "themes"),
@@ -131,9 +184,12 @@ namespace WoodPress.Core.Services
                     {
                         foreach (var dir in Directory.GetDirectories(tDir))
                         {
-                            string tName = Path.GetFileName(dir);
+                            string folderName = Path.GetFileName(dir);
+                            if (seenThemes.Contains(folderName)) continue;
+
+                            string tName = folderName;
                             string version = "1.0.0";
-                            string author = "WordPress";
+                            string author = "Inconnu";
 
                             string styleCss = Path.Combine(dir, "style.css");
                             if (File.Exists(styleCss))
@@ -153,23 +209,15 @@ namespace WoodPress.Core.Services
                                 catch { }
                             }
 
-                            themes.Add(new PluginItemInfo { Name = tName, Version = version, Author = author, Status = "🟢 Thème Actif" });
+                            seenThemes.Add(folderName);
+                            themes.Add(new PluginItemInfo { Name = tName, Version = version, Author = author, Status = "Présent sur disque" });
                         }
+                        break; // S'arrêter au premier dossier de thèmes trouvé pour éviter les doublons
                     }
                 }
             }
 
-            // Si aucune donnée n'a été trouvée (ex: conteneur volume pur), ajouter un exemple indicatif
-            if (plugins.Count == 0)
-            {
-                plugins.Add(new PluginItemInfo { Name = "flowforge-builder", Version = "1.2.0", Status = "🟢 Actif (FlowForge Natif)" });
-                plugins.Add(new PluginItemInfo { Name = "atelier-securite", Version = "2.0.1", Status = "🟢 Actif (Sécurité Codinflo)" });
-            }
-
-            if (themes.Count == 0)
-            {
-                themes.Add(new PluginItemInfo { Name = "CdfTheme", Version = "1.0.0", Author = "Codinflo Atelier", Status = "🟢 Thème Principal" });
-            }
+            // AUCUNE FAUSSE EXTENSION N'EST INJECTÉE ICI.
 
             return (plugins, themes);
         }

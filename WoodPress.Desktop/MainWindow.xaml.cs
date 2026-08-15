@@ -271,6 +271,12 @@ namespace WoodPress.Desktop
         {
             if (sender is FrameworkElement elem && elem.Tag is ProjectInfo project)
             {
+                if (!project.IsRunning)
+                {
+                    MessageBox.Show($"Le conteneur de {project.ClientName} doit être démarré pour réparer la base de données.", "Conteneur Arrêté", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
                 string dbContainer = $"{project.ProjectName}-db";
                 try
                 {
@@ -285,9 +291,23 @@ namespace WoodPress.Desktop
                     };
                     using (var proc = System.Diagnostics.Process.Start(psi))
                     {
-                        proc?.WaitForExit(5000);
+                        if (proc == null)
+                        {
+                            MessageBox.Show("Impossible de lancer le processus Docker.", "Erreur", MessageBoxButton.OK, MessageBoxImage.Error);
+                            return;
+                        }
+                        string err = await proc.StandardError.ReadToEndAsync();
+                        proc.WaitForExit(6000);
+
+                        if (proc.ExitCode == 0)
+                        {
+                            MessageBox.Show($"La base de données MySQL 'wordpress' pour {project.ClientName} a été vérifiée et initialisée avec succès !", "Réparation BDD Réussie", MessageBoxButton.OK, MessageBoxImage.Information);
+                        }
+                        else
+                        {
+                            MessageBox.Show($"Échec de la commande MySQL (ExitCode {proc.ExitCode}) :\n{err}", "Erreur MySQL", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
                     }
-                    MessageBox.Show($"La base de données MySQL 'wordpress' pour {project.ClientName} a été vérifiée et réparée avec succès !", "Réparation BDD Réussie", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
@@ -300,13 +320,14 @@ namespace WoodPress.Desktop
         {
             if (sender is FrameworkElement elem && elem.Tag is ProjectInfo project)
             {
-                var result = MessageBox.Show($"Êtes-vous sûr de vouloir supprimer le projet '{project.ClientName}' ?\n\nCela arrêtera les conteneurs Docker associés.", "Confirmation de Suppression", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var result = MessageBox.Show($"Êtes-vous sûr de vouloir retirer le projet '{project.ClientName}' de WoodPress ?\n\nLes conteneurs Docker associés seront arrêtés.", "Confirmation de Retrait", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result == MessageBoxResult.Yes)
                 {
                     await DockerService.StopContainersAsync(project.ComposeDir);
                     _allProjects.Remove(project);
+                    _configService.SaveProjects(_allProjects);
                     ApplyFilter();
-                    MessageBox.Show($"Le projet {project.ClientName} a été retiré de WoodPress.", "Projet Supprimé", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show($"Le projet {project.ClientName} a été retiré de la liste de WoodPress.", "Projet Retiré", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
         }
