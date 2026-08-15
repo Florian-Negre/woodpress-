@@ -44,8 +44,81 @@ namespace WoodPress.Core.Models
         [JsonPropertyName("phpVersion")]
         public string PhpVersion { get; set; } = "8.4";
 
+        private string _wpVersion = "calcul...";
+        private string _wpVersionStatus = "v... (calcul)";
+        private string _wpVersionColor = "#94a3b8";
+        private bool _hasWpUpdate;
+        private string _wpUpdateTooltip = string.Empty;
+
         [JsonPropertyName("wpVersion")]
-        public string WpVersion { get; set; } = "7.0.4";
+        public string WpVersion
+        {
+            get => _wpVersion;
+            set
+            {
+                if (_wpVersion != value)
+                {
+                    _wpVersion = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public string WpVersionStatus
+        {
+            get => _wpVersionStatus;
+            set
+            {
+                if (_wpVersionStatus != value)
+                {
+                    _wpVersionStatus = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public string WpVersionColor
+        {
+            get => _wpVersionColor;
+            set
+            {
+                if (_wpVersionColor != value)
+                {
+                    _wpVersionColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public bool HasWpUpdate
+        {
+            get => _hasWpUpdate;
+            set
+            {
+                if (_hasWpUpdate != value)
+                {
+                    _hasWpUpdate = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public string WpUpdateTooltip
+        {
+            get => _wpUpdateTooltip;
+            set
+            {
+                if (_wpUpdateTooltip != value)
+                {
+                    _wpUpdateTooltip = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         [JsonPropertyName("dockerStatus")]
         public string DockerStatus

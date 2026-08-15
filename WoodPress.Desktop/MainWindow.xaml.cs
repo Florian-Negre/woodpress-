@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -118,6 +119,10 @@ namespace WoodPress.Desktop
                         p.DockerStatusColor = "#ef4444"; // Rouge
                         p.IsRunning = false;
                     }
+
+                    // 3. Évaluation dynamique de la version WordPress vs Official WordPress.org
+                    string latestWp = await WordpressOrgApiService.GetLatestWordPressVersionAsync();
+                    EvaluateProjectWpVersion(p, latestWp);
                 }
 
                 ApplyFilter();
@@ -125,6 +130,161 @@ namespace WoodPress.Desktop
             catch (Exception ex)
             {
                 TxtDockerGlobalStatus.Text = $"Erreur lors du scan : {ex.Message}";
+            }
+        }
+
+        private void EvaluateProjectWpVersion(ProjectInfo p, string latestWp)
+        {
+            if (string.IsNullOrEmpty(p.WpVersion) || p.WpVersion == "calcul...")
+            {
+                p.WpVersionStatus = "v... (calcul)";
+                p.WpVersionColor = "#94a3b8";
+                p.HasWpUpdate = false;
+                return;
+            }
+
+            int comp = CompareWpVersions(p.WpVersion, latestWp);
+            if (comp >= 0)
+            {
+                p.WpVersionStatus = $"v{p.WpVersion} 🟢";
+                p.WpVersionColor = "#22c55e"; // Vert #22c55e
+                p.HasWpUpdate = false;
+                p.WpUpdateTooltip = $"WordPress à jour (v{p.WpVersion}) — Conforme à la version stable officielle.";
+            }
+            else
+            {
+                var localParts = p.WpVersion.Split('.');
+                var remoteParts = latestWp.Split('.');
+
+                bool isMajor = (localParts.Length > 0 && remoteParts.Length > 0 && localParts[0] != remoteParts[0]);
+
+                if (isMajor)
+                {
+                    p.WpVersionStatus = $"v{p.WpVersion} 🟠";
+                    p.WpVersionColor = "#f97316"; // Orange
+                    p.HasWpUpdate = true;
+                    p.WpUpdateTooltip = $"⚠️ Mise à jour MAJEURE disponible (v{latestWp}).\nPrudence : vérifier la compatibilité des extensions avant de migrer.";
+                }
+                else
+                {
+                    p.WpVersionStatus = $"v{p.WpVersion} 🟡";
+                    p.WpVersionColor = "#f59e0b"; // Jaune
+                    p.HasWpUpdate = true;
+                    p.WpUpdateTooltip = $"🛡️ Mise à jour MINEURE / SÉCURITÉ disponible (v{latestWp}).\nRecommandée sans risque majeur.";
+                }
+            }
+        }
+
+        private static int CompareWpVersions(string v1, string v2)
+        {
+            try
+            {
+                var clean1 = System.Text.RegularExpressions.Regex.Replace(v1, @"[^\d\.]", "");
+                var clean2 = System.Text.RegularExpressions.Regex.Replace(v2, @"[^\d\.]", "");
+                var ver1 = new Version(clean1.Contains('.') ? clean1 : clean1 + ".0");
+                var ver2 = new Version(clean2.Contains('.') ? clean2 : clean2 + ".0");
+                return ver1.CompareTo(ver2);
+            }
+            catch
+            {
+                return string.Compare(v1, v2, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        private async void BtnQuickUpdateWp_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement elem && elem.Tag is ProjectInfo project)
+            {
+                if (!project.IsRunning)
+                {
+                    MessageBox.Show($"Le site {project.ClientName} doit être démarré pour appliquer la mise à jour WordPress.", "Site Arrêté", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                string latestWp = await WordpressOrgApiService.GetLatestWordPressVersionAsync();
+                var localParts = project.WpVersion.Split('.');
+                var remoteParts = latestWp.Split('.');
+                bool isMajor = (localParts.Length > 0 && remoteParts.Length > 0 && localParts[0] != remoteParts[0]);
+
+                string msg;
+                if (isMajor)
+                {
+                    msg = $"⚠️ AVERTISSEMENT DE MISE À JOUR MAJEURE (v{project.WpVersion} ➔ v{latestWp})\n\n" +
+                          "Selon les standards de l'industrie, une mise à jour majeure peut introduire des incompatibilités avec vos thèmes ou constructeurs (Divi, Elementor, ACF) s'ils n'ont pas encore été testés.\n\n" +
+                          "Conseil : Assurez-vous d'avoir un backup ou testez d'abord sur un environnement de staging.\n\n" +
+                          "Souhaitez-vous lancer la mise à jour maintenant ?";
+                }
+                else
+                {
+                    msg = $"🛡️ MISE À JOUR DE SÉCURITÉ & STABILITÉ (v{project.WpVersion} ➔ v{latestWp})\n\n" +
+                          "Cette mise à jour mineure applique les derniers correctifs de sécurité et de performance sans rupture de compatibilité.\n\n" +
+                          "Voulez-vous procéder à la mise à jour immédiate ?";
+                }
+
+                var res = MessageBox.Show(msg, "Mise à Jour WordPress", MessageBoxButton.YesNo, isMajor ? MessageBoxImage.Warning : MessageBoxImage.Question);
+                if (res != MessageBoxResult.Yes) return;
+
+                if (elem is Button btn)
+                {
+                    btn.IsEnabled = false;
+                    btn.Content = "⏳...";
+                }
+
+                bool ok = await Task.Run(() =>
+                {
+                    try
+                    {
+                        string containerName = $"{project.ProjectName.ToLowerInvariant()}-wp";
+                        string phpCode = @"
+require_once '/var/www/html/wp-load.php';
+require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+require_once ABSPATH . 'wp-admin/includes/file.php';
+$skin = new Automatic_Upgrader_Skin();
+$upgrader = new Core_Upgrader($skin);
+$result = $upgrader->upgrade_core();
+echo is_wp_error($result) ? 'WP_UPGRADE_ERR:' . $result->get_error_message() : 'WP_UPGRADE_OK';
+";
+                        string b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(phpCode));
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = "docker",
+                            Arguments = $"exec {containerName} php -r \"eval(base64_decode('{b64}'));\"",
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            CreateNoWindow = true
+                        };
+                        using (var proc = Process.Start(psi))
+                        {
+                            if (proc == null) return false;
+                            string outStr = proc.StandardOutput.ReadToEnd();
+                            proc.WaitForExit(35000);
+                            return outStr.Contains("WP_UPGRADE_OK") || proc.ExitCode == 0;
+                        }
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                });
+
+                if (ok)
+                {
+                    project.WpVersion = latestWp;
+                    MessageBox.Show($"WordPress pour {project.ClientName} a été mis à jour avec succès vers la version {latestWp} !", "Mise à Jour Réussie", MessageBoxButton.OK, MessageBoxImage.Information);
+                    await RefreshProjectsAsync();
+                }
+                else
+                {
+                    MessageBox.Show("Impossible d'appliquer la mise à jour automatiquement. Vérifiez les permissions du conteneur ou la connexion réseau.", "Erreur Mise à Jour", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+
+                if (elem is Button b)
+                {
+                    b.IsEnabled = true;
+                    b.Content = "⚡ MAJ";
+                }
             }
         }
 

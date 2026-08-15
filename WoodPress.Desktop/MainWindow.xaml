@@ -92,7 +92,10 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="WordPress" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
-                                            <TextBlock Text="{Binding WpVersion}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentGreen}"/>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2,0,0">
+                                                <TextBlock Text="{Binding WpVersionStatus}" FontSize="12" FontWeight="Bold" Foreground="{Binding WpVersionColor}" VerticalAlignment="Center"/>
+                                                <Button Content="⚡ MAJ" Tag="{Binding}" Click="BtnQuickUpdateWp_Click" Visibility="{Binding HasWpUpdate, Converter={StaticResource BoolToVis}}" Background="#d97706" Padding="5,2" FontSize="10" FontWeight="Bold" Margin="6,0,0,0" VerticalAlignment="Center" ToolTip="{Binding WpUpdateTooltip}"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
