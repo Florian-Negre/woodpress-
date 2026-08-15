@@ -27,6 +27,12 @@ namespace WoodPress.Core.Models
         [JsonPropertyName("clientName")]
         public string ClientName { get; set; } = string.Empty;
 
+        [JsonPropertyName("siteUrl")]
+        public string SiteUrl { get; set; } = string.Empty;
+
+        [JsonPropertyName("tablePrefix")]
+        public string TablePrefix { get; set; } = "wp_";
+
         [JsonPropertyName("wpVersion")]
         public string WpVersion { get; set; } = "7.0.4";
 

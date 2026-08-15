@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
@@ -36,7 +37,29 @@ namespace WoodPress.Core.Services
         }
 
         /// <summary>
-        /// Crée un paquet .AZF tout-en-un à partir d'un projet WordPress (BDD + wp-content + config)
+        /// Extrait l'intégralité d'un paquet .AZF dans le répertoire cible
+        /// </summary>
+        public static async Task<bool> ExtractAzfPackageAsync(string azfFilePath, string targetDirectory)
+        {
+            if (!File.Exists(azfFilePath)) return false;
+            if (!Directory.Exists(targetDirectory)) Directory.CreateDirectory(targetDirectory);
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    ZipFile.ExtractToDirectory(azfFilePath, targetDirectory, true);
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+        }
+
+        /// <summary>
+        /// Crée un paquet .AZF tout-en-un à partir d'un projet WordPress (BDD SQL réelle + wp-content + config)
         /// </summary>
         public static async Task<string> CreateAzfPackageAsync(ProjectInfo project, string outputDirectory, string notes = "")
         {
@@ -52,6 +75,7 @@ namespace WoodPress.Core.Services
             {
                 ProjectName = project.ProjectName,
                 ClientName = project.ClientName,
+                SiteUrl = $"http://localhost:{project.HttpPort}",
                 WpVersion = project.WpVersion,
                 PhpVersion = project.PhpVersion,
                 OriginalHttpPort = project.HttpPort,
@@ -70,14 +94,48 @@ namespace WoodPress.Core.Services
                     await writer.WriteAsync(json);
                 }
 
-                // 2. Inclure docker-compose.yml si présent
+                // 2. Dump SQL réel de la base MySQL
+                string dbContainer = $"{project.ProjectName}-db";
+                string tempSqlFile = Path.Combine(outputDirectory, $"temp_dump_{project.ProjectName}_{DateTime.Now.Ticks}.sql");
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "docker",
+                        Arguments = $"exec {dbContainer} mysqldump -u root -prootpassword wordpress",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    using (var proc = Process.Start(psi))
+                    {
+                        if (proc != null)
+                        {
+                            string sql = await proc.StandardOutput.ReadToEndAsync();
+                            await proc.WaitForExitAsync();
+                            if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(sql))
+                            {
+                                File.WriteAllText(tempSqlFile, sql);
+                                zip.CreateEntryFromFile(tempSqlFile, "database.sql");
+                            }
+                        }
+                    }
+                }
+                catch { }
+                finally
+                {
+                    if (File.Exists(tempSqlFile)) File.Delete(tempSqlFile);
+                }
+
+                // 3. Inclure docker-compose.yml si présent
                 string composePath = Path.Combine(project.ProjectDir, "docker-compose.yml");
                 if (File.Exists(composePath))
                 {
                     zip.CreateEntryFromFile(composePath, "docker-compose.yml");
                 }
 
-                // 2. Inclusion du dossier wp-content (sur disque ou extrait du conteneur Docker)
+                // 4. Inclusion du dossier wp-content (sur disque ou extrait du conteneur Docker)
                 string localWpContent = Path.Combine(project.ProjectDir, "wp-content");
                 string mirrorWpContent = Path.Combine(project.ProjectDir, "wp-content-mirror");
 
@@ -95,7 +153,7 @@ namespace WoodPress.Core.Services
                     string tempWpContent = Path.Combine(outputDirectory, $"temp_wp_{project.ProjectName}");
                     try
                     {
-                        var psi = new System.Diagnostics.ProcessStartInfo
+                        var psi = new ProcessStartInfo
                         {
                             FileName = "docker",
                             Arguments = $"cp {project.ProjectName}-wp:/var/www/html/wp-content \"{tempWpContent}\"",
@@ -104,9 +162,12 @@ namespace WoodPress.Core.Services
                             RedirectStandardError = true,
                             CreateNoWindow = true
                         };
-                        using (var proc = System.Diagnostics.Process.Start(psi))
+                        using (var proc = Process.Start(psi))
                         {
-                            proc?.WaitForExit(15000);
+                            if (proc != null)
+                            {
+                                await proc.WaitForExitAsync();
+                            }
                         }
                         if (Directory.Exists(tempWpContent))
                         {
@@ -121,26 +182,16 @@ namespace WoodPress.Core.Services
             return azfFilePath;
         }
 
-        /// <summary>
-        /// Extrait un paquet .AZF dans un dossier de destination
-        /// </summary>
-        public static async Task ExtractAzfPackageAsync(string azfFilePath, string destinationDir)
-        {
-            if (!File.Exists(azfFilePath))
-                throw new FileNotFoundException("Fichier .AZF introuvable.", azfFilePath);
-
-            if (!Directory.Exists(destinationDir))
-                Directory.CreateDirectory(destinationDir);
-
-            await Task.Run(() => ZipFile.ExtractToDirectory(azfFilePath, destinationDir, true));
-        }
-
         private static void AddDirectoryToZip(ZipArchive zip, string sourceDir, string entryPrefix)
         {
-            var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
+            var files = Directory.GetFiles(sourceDir, "*.*", SearchOption.AllDirectories);
             foreach (var file in files)
             {
-                string relativePath = Path.GetRelativePath(sourceDir, file);
+                // Exclure les dossiers temporaires ou exports
+                if (file.Contains(Path.DirectorySeparatorChar + "exports" + Path.DirectorySeparatorChar)) continue;
+                if (file.Contains(Path.DirectorySeparatorChar + "temp_" + Path.DirectorySeparatorChar)) continue;
+
+                string relativePath = file.Substring(sourceDir.Length).TrimStart('\\', '/');
                 string entryName = Path.Combine(entryPrefix, relativePath).Replace('\\', '/');
                 zip.CreateEntryFromFile(file, entryName);
             }

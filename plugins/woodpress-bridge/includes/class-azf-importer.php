@@ -38,7 +38,8 @@ class WoodPress_Azf_Importer
             $manifest_file = $extract_dir . '/manifest.azf.json';
             $old_url = '';
             if (file_exists($manifest_file)) {
-                $manifest = json_decode(file_contents($manifest_file), true);
+                $manifest_content = file_get_contents($manifest_file);
+                $manifest = json_decode($manifest_content, true);
                 if (!empty($manifest['siteUrl'])) {
                     $old_url = untrailingslashit($manifest['siteUrl']);
                 }
@@ -56,10 +57,10 @@ class WoodPress_Azf_Importer
                 self::copy_dir($extracted_wp_content, WP_CONTENT_DIR);
             }
 
-            // 5. Search & Replace automatique des URLs si demandé
+            // 5. Search & Replace automatique des URLs compatible données sérialisées
             $new_url = untrailingslashit(home_url());
             if (!empty($old_url) && $old_url !== $new_url) {
-                self::search_and_replace_urls($old_url, $new_url);
+                self::search_and_replace_urls_serialized($old_url, $new_url);
             }
 
             // Nettoyage temporaire
@@ -68,7 +69,7 @@ class WoodPress_Azf_Importer
             wp_send_json_success(array(
                 'message' => 'Site importé et restauré avec succès avec Search & Replace !'
             ));
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             self::delete_dir($extract_dir);
             wp_send_json_error(array('message' => $e->getMessage()));
         }
@@ -80,7 +81,6 @@ class WoodPress_Azf_Importer
         $queries = file_get_contents($sql_file);
         if (empty($queries)) return;
 
-        // Découpage des requêtes
         $sql_statements = explode(";\n", $queries);
         foreach ($sql_statements as $statement) {
             $statement = trim($statement);
@@ -90,19 +90,71 @@ class WoodPress_Azf_Importer
         }
     }
 
-    private static function search_and_replace_urls($old_url, $new_url)
+    /**
+     * Search & Replace récursif compatible avec les données PHP sérialisées (Divi, Elementor, ACF, Widgets)
+     */
+    private static function search_and_replace_urls_serialized($old_url, $new_url)
     {
         global $wpdb;
 
-        // Remplacement dans wp_options (siteurl & home)
-        $wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = REPLACE(option_value, %s, %s) WHERE option_name IN ('siteurl', 'home')", $old_url, $new_url));
+        // 1. Tables principales
+        $tables = array(
+            $wpdb->options  => array('option_value', 'option_id'),
+            $wpdb->posts    => array('post_content', 'ID'),
+            $wpdb->postmeta => array('meta_value', 'meta_id')
+        );
 
-        // Remplacement dans wp_posts (guid, post_content)
-        $wpdb->query($wpdb->prepare("UPDATE {$wpdb->posts} SET post_content = REPLACE(post_content, %s, %s)", $old_url, $new_url));
+        foreach ($tables as $table => $cols) {
+            $val_col = $cols[0];
+            $id_col  = $cols[1];
+
+            $rows = $wpdb->get_results("SELECT {$id_col}, {$val_col} FROM {$table} WHERE {$val_col} LIKE '%" . $wpdb->esc_like($old_url) . "%'", ARRAY_A);
+            if (!empty($rows)) {
+                foreach ($rows as $row) {
+                    $id = $row[$id_col];
+                    $val = $row[$val_col];
+
+                    $new_val = self::recursive_unserialize_replace($old_url, $new_url, $val);
+                    $wpdb->update($table, array($val_col => $new_val), array($id_col => $id));
+                }
+            }
+        }
+
+        // Remplacement simple dans guid
         $wpdb->query($wpdb->prepare("UPDATE {$wpdb->posts} SET guid = REPLACE(guid, %s, %s)", $old_url, $new_url));
+    }
 
-        // Remplacement dans wp_postmeta
-        $wpdb->query($wpdb->prepare("UPDATE {$wpdb->postmeta} SET meta_value = REPLACE(meta_value, %s, %s)", $old_url, $new_url));
+    private static function recursive_unserialize_replace($from, $to, $data)
+    {
+        if (is_serialized($data)) {
+            $unserialized = @unserialize($data);
+            if ($unserialized !== false || $data === 'b:0;') {
+                $replaced = self::recursive_replace($from, $to, $unserialized);
+                return serialize($replaced);
+            }
+        }
+
+        if (is_string($data)) {
+            return str_replace($from, $to, $data);
+        }
+
+        return $data;
+    }
+
+    private static function recursive_replace($from, $to, $data)
+    {
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                $data[$key] = self::recursive_replace($from, $to, $value);
+            }
+        } elseif (is_object($data)) {
+            foreach ($data as $key => $value) {
+                $data->$key = self::recursive_replace($from, $to, $value);
+            }
+        } elseif (is_string($data)) {
+            $data = str_replace($from, $to, $data);
+        }
+        return $data;
     }
 
     private static function copy_dir($src, $dst)
@@ -129,6 +181,6 @@ class WoodPress_Azf_Importer
             $path = "$dir/$file";
             is_dir($path) ? self::delete_dir($path) : unlink($path);
         }
-        rmdir($dir);
+        @rmdir($dir);
     }
 }

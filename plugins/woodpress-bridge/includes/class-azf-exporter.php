@@ -13,7 +13,7 @@ class WoodPress_Azf_Exporter
             wp_send_json_error(array('message' => 'Autorisation refusée.'));
         }
 
-        // Augmenter les limites de temps et de mémoire pour les gros sites
+        // Augmenter les limites de temps et de mémoire
         @set_time_limit(600);
         @ini_set('memory_limit', '512M');
 
@@ -22,10 +22,16 @@ class WoodPress_Azf_Exporter
         $include_themes  = isset($_POST['include_themes']) && $_POST['include_themes'] === 'true';
 
         $upload_dir = wp_upload_dir();
-        $temp_dir = trailingslashit($upload_dir['basedir']) . 'woodpress_temp_' . time();
-        if (!file_exists($temp_dir)) {
-            wp_mkdir_p($temp_dir);
+        $secure_storage_dir = trailingslashit($upload_dir['basedir']) . 'woodpress-storage';
+        if (!file_exists($secure_storage_dir)) {
+            wp_mkdir_p($secure_storage_dir);
+            // Protection htaccess et index.php
+            @file_put_contents($secure_storage_dir . '/.htaccess', "Options -Indexes\n<FilesMatch \"\\.(azf|sql|json)$\">\nOrder Allow,Deny\nAllow from all\n</FilesMatch>");
+            @file_put_contents($secure_storage_dir . '/index.php', "<?php // Silence is golden");
         }
+
+        $temp_dir = trailingslashit($secure_storage_dir) . 'temp_' . time();
+        wp_mkdir_p($temp_dir);
 
         try {
             // 1. Dump SQL de la BDD
@@ -48,7 +54,7 @@ class WoodPress_Azf_Exporter
             );
             file_put_contents($manifest_file, json_encode($manifest_data, JSON_PRETTY_PRINT));
 
-            // 3. Fichier docker-compose.yml par défaut
+            // 3. Fichier docker-compose.yml
             $compose_file = $temp_dir . '/docker-compose.yml';
             $slug = sanitize_title(get_bloginfo('name'));
             $compose_yaml = "version: '3.8'\n\nservices:\n  wordpress:\n    image: wordpress:php8.4-apache\n    container_name: {$slug}-wp\n    restart: always\n    ports:\n      - \"8081:80\"\n    environment:\n      WORDPRESS_DB_HOST: db:3306\n      WORDPRESS_DB_USER: wp_user\n      WORDPRESS_DB_PASSWORD: wp_password\n      WORDPRESS_DB_NAME: wordpress\n    volumes:\n      - ./:/var/www/html\n    depends_on:\n      - db\n\n  db:\n    image: mysql:8.0\n    container_name: {$slug}-db\n    restart: always\n    environment:\n      MYSQL_DATABASE: wordpress\n      MYSQL_USER: wp_user\n      MYSQL_PASSWORD: wp_password\n      MYSQL_ROOT_PASSWORD: rootpassword\n    volumes:\n      - db_data:/var/lib/mysql\n\nvolumes:\n  db_data:\n";
@@ -56,19 +62,18 @@ class WoodPress_Azf_Exporter
 
             // 4. Création de l'archive .AZF
             $zip_file_name = sanitize_title(get_bloginfo('name')) . '_' . date('Ymd_His') . '.azf';
-            $zip_file_path = trailingslashit($upload_dir['basedir']) . $zip_file_name;
+            $zip_file_path = trailingslashit($secure_storage_dir) . $zip_file_name;
 
             $zip = new ZipArchive();
             if ($zip->open($zip_file_path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
                 throw new Exception("Impossible de créer l'archive .AZF.");
             }
 
-            // Ajouter database.sql, manifest et docker-compose
             $zip->addFile($sql_file, 'database.sql');
             $zip->addFile($manifest_file, 'manifest.azf.json');
             $zip->addFile($compose_file, 'docker-compose.yml');
 
-            // Ajouter wp-content
+            // Inclusion wp-content
             $wp_content_dir = WP_CONTENT_DIR;
             if ($include_plugins && is_dir($wp_content_dir . '/plugins')) {
                 self::add_dir_to_zip($zip, $wp_content_dir . '/plugins', 'wp-content/plugins');
@@ -77,22 +82,22 @@ class WoodPress_Azf_Exporter
                 self::add_dir_to_zip($zip, $wp_content_dir . '/themes', 'wp-content/themes');
             }
             if ($include_uploads && is_dir($upload_dir['basedir'])) {
-                self::add_dir_to_zip($zip, $upload_dir['basedir'], 'wp-content/uploads', array('woodpress_temp_'));
+                self::add_dir_to_zip($zip, $upload_dir['basedir'], 'wp-content/uploads', array('woodpress-storage', 'woodpress_temp_'));
             }
 
             $zip->close();
 
-            // Nettoyage dossier temporaire
+            // Nettoyage temporaire
             self::delete_dir($temp_dir);
 
-            $download_url = trailingslashit($upload_dir['baseurl']) . $zip_file_name;
+            $download_url = trailingslashit($upload_dir['baseurl']) . 'woodpress-storage/' . $zip_file_name;
 
             wp_send_json_success(array(
                 'message'      => 'Exportation .AZF réussie !',
                 'download_url' => $download_url,
                 'file_name'    => $zip_file_name
             ));
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             self::delete_dir($temp_dir);
             wp_send_json_error(array('message' => $e->getMessage()));
         }
@@ -170,6 +175,6 @@ class WoodPress_Azf_Exporter
             $path = "$dir/$file";
             is_dir($path) ? self::delete_dir($path) : unlink($path);
         }
-        rmdir($dir);
+        @rmdir($dir);
     }
 }
