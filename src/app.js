@@ -24,6 +24,7 @@ export const state = {
   query: '',
   theme: getConfig().theme || 'dark',
   latestWpVersion: '6.7.2',
+  isScanning: false,
 }
 
 let _root = null
@@ -31,6 +32,14 @@ let _root = null
 // ── Rendu principal ────────────────────────────────────────────────────────
 export function renderApp(root) {
   _root = root
+
+  // Synchronisation synchrone avec la configuration chargée depuis le disque
+  const cfg = getConfig()
+  state.workspaces = Array.isArray(cfg.workspaces) ? [...cfg.workspaces] : []
+  state.theme = cfg.theme || 'dark'
+  state.layout = cfg.layout || 'grid'
+  state.isScanning = false
+
   root.innerHTML = `
     <div id="wp-shell" style="
       position: absolute; inset: 0;
@@ -91,6 +100,45 @@ function renderView() {
   }
 }
 
+// ── Scan manuel ou auto-découverte ──────────────────────────────────────────
+export async function triggerScan(forceAutoDiscover = false) {
+  state.isScanning = true
+  renderView()
+  renderSidebar(document.getElementById('wp-sidebar'))
+
+  try {
+    // Si aucun workspace configuré ou auto-découverte explicite demandée
+    if (state.workspaces.length === 0 || forceAutoDiscover) {
+      try {
+        const discovered = await invoke('auto_discover_workspaces')
+        if (Array.isArray(discovered) && discovered.length > 0) {
+          const existingPaths = new Set(state.workspaces.map(w => (w.path || '').toLowerCase()))
+          const newOnes = discovered.filter(d => d.path && !existingPaths.has(d.path.toLowerCase()))
+          if (newOnes.length > 0) {
+            state.workspaces = [...state.workspaces, ...newOnes]
+            await updateConfig({ workspaces: state.workspaces }, { immediate: true })
+          }
+        }
+      } catch (err) {
+        console.warn('Auto-découverte impossible :', err)
+      }
+    }
+
+    const paths = state.workspaces.map(w => w.path)
+    state.sites = await invoke('scan_workspaces', { paths })
+  } catch (e) {
+    console.warn('Scan workspaces échoué :', e)
+    state.sites = []
+  } finally {
+    state.isScanning = false
+    renderView()
+    renderSidebar(document.getElementById('wp-sidebar'))
+  }
+}
+
+window.wpScanWorkspaces = triggerScan
+window.wpTriggerAutoDiscover = () => triggerScan(true)
+
 // ── Bootstrap : charge les données réelles au démarrage ─────────────────────
 async function bootstrap() {
   // Détection Docker
@@ -98,15 +146,6 @@ async function bootstrap() {
     state.dockerStatus = await invoke('get_docker_status')
   } catch (e) {
     console.warn('Docker non disponible :', e)
-  }
-
-  // Scan réel des workspaces de l'utilisateur
-  try {
-    const paths = state.workspaces.map(w => w.path)
-    state.sites = await invoke('scan_workspaces', { paths })
-  } catch (e) {
-    console.warn('Scan workspaces échoué :', e)
-    state.sites = []
   }
 
   // Détection des IDEs
@@ -123,6 +162,9 @@ async function bootstrap() {
     console.warn('Vérification WP version échouée :', e)
   }
 
+  // Premier scan avec auto-découverte si aucun dossier n'est enregistré
+  await triggerScan(state.workspaces.length === 0)
+
   // Rendu de l'interface avec données réelles
   renderView()
   renderSidebar(document.getElementById('wp-sidebar'))
@@ -131,14 +173,16 @@ async function bootstrap() {
   setInterval(async () => {
     try {
       state.dockerStatus = await invoke('get_docker_status')
-      const paths = state.workspaces.map(w => w.path)
-      const freshSites = await invoke('scan_workspaces', { paths })
-      if (JSON.stringify(freshSites) !== JSON.stringify(state.sites)) {
-        state.sites = freshSites
-        if (state.selectedSite) {
-          state.selectedSite = state.sites.find(s => s.path === state.selectedSite.path) || state.selectedSite
+      if (!state.isScanning) {
+        const paths = state.workspaces.map(w => w.path)
+        const freshSites = await invoke('scan_workspaces', { paths })
+        if (JSON.stringify(freshSites) !== JSON.stringify(state.sites)) {
+          state.sites = freshSites
+          if (state.selectedSite) {
+            state.selectedSite = state.sites.find(s => s.path === state.selectedSite.path) || state.selectedSite
+          }
+          renderView()
         }
-        renderView()
       }
       renderSidebar(document.getElementById('wp-sidebar'))
     } catch {}

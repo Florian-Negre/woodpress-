@@ -3,21 +3,26 @@ import { invoke } from '@tauri-apps/api/core'
 import { showPhpPatchNoteModal } from './PhpPatchNoteModal.js'
 import { showResolvePortModal } from './ResolvePortModal.js'
 import { showContainerizeModal } from './ContainerizeModal.js'
+import { showUpdateStackModal } from './UpdateStackModal.js'
 import { getConfig } from '../configStore.js'
 
 export function renderSiteCard(site, isSelected) {
   const isLegacy = site.is_legacy
   const isOnline = site.status === 'online'
   const isStarting = site.status === 'starting'
+  const isStopping = site.status === 'stopping'
   const isError = site.status === 'error'
   const hasConflict = site.has_port_conflict
+  const hasWpUpdate = site.wp_version && state.latestWpVersion && site.wp_version !== state.latestWpVersion && !site.wp_version.startsWith('7.')
 
   const statusBadge = isLegacy
     ? `<div class="badge badge-warn" style="font-size:11px;"><span class="badge-dot"></span>${site.legacy_stack || 'Laragon/WAMP'}</div>`
     : isOnline
     ? `<div class="badge badge-online"><span class="badge-dot"></span>En ligne</div>`
     : isStarting
-    ? `<div class="badge badge-warn"><span class="badge-dot"></span>Démarrage…</div>`
+    ? `<div class="badge badge-warn" style="display:flex;align-items:center;gap:5px;"><span class="animate-spin" style="display:inline-block;font-size:10px;">🔄</span>Démarrage…</div>`
+    : isStopping
+    ? `<div class="badge badge-warn" style="display:flex;align-items:center;gap:5px;"><span class="animate-spin" style="display:inline-block;font-size:10px;">🔄</span>Arrêt…</div>`
     : isError
     ? `<div class="badge badge-err"><span class="badge-dot"></span>Erreur</div>`
     : `<div class="badge badge-stopped"><span class="badge-dot"></span>Arrêté</div>`
@@ -98,12 +103,22 @@ export function renderSiteCard(site, isSelected) {
             </span>
           ` : ''}
         </div>
+
         <div class="font-mono" style="font-size: 11px; color: var(--tx3); display: flex; align-items: center; gap: 6px;">
-          <span>WP ${site.wp_version || '6.7.2'}</span>
+          <span style="display:flex;align-items:center;gap:4px;">
+            WP ${site.wp_version || '6.7.2'}
+            ${hasWpUpdate ? `
+              <span style="background:var(--amBg);color:var(--am);border:1px solid var(--amBd);border-radius:4px;padding:1px 4px;font-size:9px;font-weight:700;cursor:pointer;"
+                title="Mise à jour disponible vers v${state.latestWpVersion} · Cliquez pour mettre à jour"
+                onclick="event.stopPropagation(); window.wpOpenStackUpdate('${site.path.replace(/\\/g, '\\\\')}')">
+                ⚡ MAJ
+              </span>
+            ` : ''}
+          </span>
           ${!isLegacy ? `
             <span>·</span>
             <span style="color:var(--cy);cursor:pointer;text-decoration:underline;"
-              title="Cliquez pour voir les patch notes et changer de version PHP"
+              title="Cliquez pour voir les patch notes PHP"
               onclick="event.stopPropagation(); window.wpOpenPhpModal('${site.path.replace(/\\/g, '\\\\')}')">
               ${site.php_version || 'PHP 8.4'} ↗
             </span>
@@ -119,6 +134,14 @@ export function renderSiteCard(site, isSelected) {
           </button>
           <button class="btn btn-elev btn-sm" onclick="window.wpOpenFolder('${site.path.replace(/\\/g, '\\\\')}')">
             📁
+          </button>
+        ` : isStarting ? `
+          <button class="btn btn-primary btn-sm" style="flex:1;" disabled>
+            <span class="animate-spin" style="display:inline-block;">🔄</span> Démarrage…
+          </button>
+        ` : isStopping ? `
+          <button class="btn btn-elev btn-sm" style="flex:1;" disabled>
+            <span class="animate-spin" style="display:inline-block;">🔄</span> Arrêt…
           </button>
         ` : isOnline ? `
           <button class="btn btn-elev btn-sm" style="flex:1;" onclick="window.wpStopSite('${site.path.replace(/\\/g, '\\\\')}')">
@@ -144,6 +167,13 @@ export function renderSiteCard(site, isSelected) {
       </div>
     </div>
   `
+}
+
+window.wpOpenStackUpdate = (path) => {
+  const site = state.sites.find(s => s.path === path)
+  if (site) showUpdateStackModal(site, () => {
+    if (window.wpScanWorkspaces) window.wpScanWorkspaces()
+  })
 }
 
 window.wpOpenContainerizeModal = (path) => {

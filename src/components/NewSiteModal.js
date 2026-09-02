@@ -13,7 +13,7 @@ export function showNewSiteModal() {
   let form = {
     name: 'mon-nouveau-site',
     workspace: state.workspaces[0]?.path || '',
-    wpVersion: '7.1',
+    wpVersion: '6.7.2',
     phpVersion: '8.4',
     httpPort: 8085,
     dbName: 'wordpress',
@@ -93,10 +93,10 @@ export function showNewSiteModal() {
               <div>
                 <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:6px;">Version WordPress</div>
                 <select id="new-site-wp" class="input input-mono">
-                  <option value="7.1" selected>7.1 (dernière)</option>
-                  <option value="7.0.4">7.0.4</option>
-                  <option value="6.7.2">6.7.2</option>
-                  <option value="6.6.3">6.6.3</option>
+                  <option value="6.7.2" selected>6.7.2 (Recommandé - Rollins)</option>
+                  <option value="7.0.4">7.0.4 (Dernière officielle)</option>
+                  <option value="6.6.2">6.6.2 (Dorsey)</option>
+                  <option value="latest">latest (Docker Hub)</option>
                 </select>
               </div>
               <div>

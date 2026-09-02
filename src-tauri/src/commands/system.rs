@@ -159,10 +159,11 @@ pub async fn detect_ides() -> Result<Vec<IdeInfo>, String> {
         ),
     ];
 
+    let which_cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
     let ides = candidates
         .into_iter()
         .map(|(name, cmd, paths)| {
-            let mut detected = new_command("where")
+            let mut detected = new_command(which_cmd)
                 .arg(cmd)
                 .output()
                 .map(|o| o.status.success())
@@ -171,6 +172,21 @@ pub async fn detect_ides() -> Result<Vec<IdeInfo>, String> {
             if !detected {
                 for p in paths {
                     if Path::new(&p).exists() {
+                        detected = true;
+                        break;
+                    }
+                }
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            if !detected {
+                let linux_candidates = [
+                    format!("/usr/bin/{}", cmd),
+                    format!("/usr/local/bin/{}", cmd),
+                    format!("/snap/bin/{}", cmd),
+                ];
+                for lp in &linux_candidates {
+                    if Path::new(lp).exists() {
                         detected = true;
                         break;
                     }

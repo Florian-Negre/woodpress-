@@ -2,8 +2,9 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::TcpListener;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use super::docker::new_command;
+use super::config::WorkspaceEntry;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SiteInfo {
@@ -77,6 +78,19 @@ pub struct PhpPatchNote {
     pub highlights: Vec<String>,
     pub deprecations: Vec<String>,
     pub changelog_url: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WpReleaseInfo {
+    pub version: String,
+    pub release_date: String,
+    pub title: String,
+    pub summary: String,
+    pub new_features: Vec<String>,
+    pub fixes_and_security: Vec<String>,
+    pub php_compatibility: String,
+    pub official_url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -251,6 +265,236 @@ pub async fn get_php_patch_notes(version: String) -> Result<PhpPatchNote, String
             changelog_url: "https://www.php.net/releases/index.php".to_string(),
         })
     }
+}
+
+/// Notes de version officielles pour WordPress (porté depuis V1 C#)
+#[tauri::command]
+pub async fn get_wp_changelogs() -> Result<Vec<WpReleaseInfo>, String> {
+    let releases = vec![
+        WpReleaseInfo {
+            version: "7.0.4".to_string(),
+            release_date: "Août 2026".to_string(),
+            title: "WordPress 7.0 — Nouvelle Génération & Performance Extrême".to_string(),
+            summary: "Mise à jour majeure introduisant une refonte du moteur de rendu des blocs, le support étendu de PHP 8.4/8.5, et une sécurité renforcée par défaut.".to_string(),
+            new_features: vec![
+                "⚡ Mode 'Zoom Out' et composition de grille visuelle pour les blocs.".to_string(),
+                "🎨 Nouvelle API Font Library avec prise en charge avancée des polices locales et variables.".to_string(),
+                "🚀 Chargement différé intelligent (Lazy-loading) des styles CSS et assets de blocs pour un score Core Web Vitals optimal.".to_string(),
+                "🔒 Authentification à deux facteurs native intégrée dans le cœur et isolation des sessions administrateur.".to_string(),
+                "🖼️ Support natif complet du format AVIF et WebP avec conversion automatique optimisée.".to_string(),
+            ],
+            fixes_and_security: vec![
+                "🛡️ Correction de vulnérabilités potentielles dans l'API REST et durcissement des requêtes sanitaires.".to_string(),
+                "🛠️ Résolution de conflits de typage avec PHP 8.4 et dépréciations anticipées pour PHP 8.5.".to_string(),
+                "🧹 Nettoyage des options autoloadées dans la base de données pour alléger wp_options.".to_string(),
+                "✨ Amélioration de la compatibilité avec MySQL 8.0/8.4 et MariaDB 11.x.".to_string(),
+            ],
+            php_compatibility: "PHP 8.1 à PHP 8.5 (Recommandé : PHP 8.4)".to_string(),
+            official_url: "https://wordpress.org/news/category/releases/".to_string(),
+        },
+        WpReleaseInfo {
+            version: "6.7.2".to_string(),
+            release_date: "Février 2025".to_string(),
+            title: "WordPress 6.7 — Rollins".to_string(),
+            summary: "Mise à jour majeure apportant le nouveau thème par défaut Twenty Twenty-Five, une gestion des polices typographiques améliorée et la vue d'ensemble du design.".to_string(),
+            new_features: vec![
+                "🖌️ Nouveau thème par défaut 'Twenty Twenty-Five' ultra flexible.".to_string(),
+                "🔍 Vue d'ensemble 'Zoom Out' pour assembler et organiser les sections d'une page à grande échelle.".to_string(),
+                "🔤 Prise en charge des polices fluides et gestionnaire de typographie universel.".to_string(),
+                "📐 Support des bordures et ombres sur un plus grand nombre de blocs de base.".to_string(),
+                "⚡ Amélioration de 20% du temps de chargement de l'éditeur de site.".to_string(),
+            ],
+            fixes_and_security: vec![
+                "🛠️ Plus de 65 corrections de bugs dans le cœur et 80 améliorations de l'éditeur.".to_string(),
+                "🛡️ Correctifs de compatibilité pour les notices PHP 8.3 et 8.4.".to_string(),
+                "📊 Correction des meta-queries complexes dans WP_Query.".to_string(),
+            ],
+            php_compatibility: "PHP 7.4 à PHP 8.4 (Recommandé : PHP 8.3 ou 8.4)".to_string(),
+            official_url: "https://wordpress.org/news/2024/11/rollins/".to_string(),
+        },
+        WpReleaseInfo {
+            version: "6.6.2".to_string(),
+            release_date: "Septembre 2024".to_string(),
+            title: "WordPress 6.6 — Dorsey".to_string(),
+            summary: "Harmonisation des styles de sections, prévisualisation responsive et rollbacks automatiques des extensions.".to_string(),
+            new_features: vec![
+                "🔄 Rollbacks automatiques : restauration automatique de la version précédente si une mise à jour d'extension échoue.".to_string(),
+                "🎨 Variations de style de section pour appliquer des palettes globales à des groupes de blocs.".to_string(),
+                "📐 Espacements et marges négatives pour des designs sophistiqués.".to_string(),
+                "📱 Aperçu responsive dynamique directement dans l'éditeur de site.".to_string(),
+            ],
+            fixes_and_security: vec![
+                "🛡️ Correctifs de sécurité critiques et durcissement des nonces de formulaires.".to_string(),
+                "🛠️ Stabilité accrue du gestionnaire de médias.".to_string(),
+            ],
+            php_compatibility: "PHP 7.4 à PHP 8.3 (Recommandé : PHP 8.2 ou 8.3)".to_string(),
+            official_url: "https://wordpress.org/news/2024/07/dorsey/".to_string(),
+        },
+    ];
+    Ok(releases)
+}
+
+/// Met à jour la version de WordPress et/ou de PHP dans le docker-compose et redémarre
+#[tauri::command]
+pub async fn update_site_stack(
+    compose_dir: String,
+    target_wp: String,
+    target_php: String,
+) -> Result<SiteInfo, String> {
+    let dir = Path::new(&compose_dir);
+    let compose_file = if dir.join("docker-compose.yml").exists() {
+        dir.join("docker-compose.yml")
+    } else if dir.join("docker-compose.yaml").exists() {
+        dir.join("docker-compose.yaml")
+    } else {
+        return Err("docker-compose.yml introuvable".to_string());
+    };
+
+    let content = fs::read_to_string(&compose_file)
+        .map_err(|e| format!("Impossible de lire docker-compose.yml : {}", e))?;
+
+    let clean_php = target_php.trim().trim_start_matches("PHP ").trim();
+    let clean_wp = target_wp.trim().trim_start_matches('v').trim();
+
+    let new_tag = if clean_wp.eq_ignore_ascii_case("latest") {
+        format!("wordpress:php{}-apache", clean_php)
+    } else {
+        format!("wordpress:{}-php{}-apache", clean_wp, clean_php)
+    };
+
+    let mut updated_lines = vec![];
+    let mut replaced = false;
+    for line in content.lines() {
+        if !replaced && line.trim().starts_with("image:") && line.contains("wordpress:") {
+            let indent = line.chars().take_while(|c| c.is_whitespace()).collect::<String>();
+            updated_lines.push(format!("{}image: {}", indent, new_tag));
+            replaced = true;
+        } else {
+            updated_lines.push(line.to_string());
+        }
+    }
+
+    if !replaced {
+        return Err("Ligne 'image: wordpress:...' introuvable dans le docker-compose.yml".to_string());
+    }
+
+    fs::write(&compose_file, updated_lines.join("\n"))
+        .map_err(|e| format!("Erreur écriture docker-compose.yml : {}", e))?;
+
+    let site_name = dir.file_name().unwrap_or_default().to_string_lossy().to_string().to_lowercase();
+    let _ = new_command("docker")
+        .args(["compose", "-p", &site_name, "up", "-d", "--force-recreate"])
+        .current_dir(dir)
+        .output();
+
+    let updated_content = updated_lines.join("\n");
+    let http_port = detect_http_port(&updated_content);
+    let php_ver = detect_php_version(&updated_content);
+    let site_dir = if dir.parent().map(|p| p.join("wp-config.php").exists()).unwrap_or(false) {
+        dir.parent().unwrap()
+    } else {
+        dir
+    };
+    let wp_ver = detect_wp_version(site_dir);
+
+    Ok(SiteInfo {
+        name: site_name.clone(),
+        path: site_dir.to_string_lossy().to_string(),
+        compose_dir: compose_dir.clone(),
+        workspace: site_dir.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
+        status: "online".to_string(),
+        http_port,
+        custom_domain: Some(format!("{}.local", site_name)),
+        wp_version: Some(wp_ver),
+        php_version: php_ver,
+        has_update: false,
+        latest_wp: None,
+        has_port_conflict: false,
+        conflict_reason: None,
+        is_legacy: false,
+        legacy_stack: None,
+    })
+}
+
+/// Découvre automatiquement les dossiers de travail à partir des conteneurs Docker et des dossiers types
+#[tauri::command]
+pub async fn auto_discover_workspaces() -> Result<Vec<WorkspaceEntry>, String> {
+    let mut found_paths: Vec<PathBuf> = vec![];
+
+    // 1. Découverte via les conteneurs Docker en cours ou arrêtés
+    if let Ok(out) = new_command("docker").args(["ps", "-a", "--format", "{{.Names}}"]).output() {
+        let names = String::from_utf8_lossy(&out.stdout);
+        for name in names.lines().map(str::trim).filter(|n| !n.is_empty()) {
+            let lower = name.to_lowercase();
+            if lower.contains("wp") || lower.contains("wordpress") {
+                if let Ok(insp) = new_command("docker").args(["inspect", name, "--format", "{{range .Mounts}}{{.Source}} -> {{.Destination}}{{println}}{{end}}"]).output() {
+                    let mounts = String::from_utf8_lossy(&insp.stdout);
+                    for m in mounts.lines() {
+                        if m.contains("-> /var/www/html") || m.contains("-> /var/www") {
+                            if let Some(src) = m.split("->").next() {
+                                let src_p = PathBuf::from(src.trim());
+                                if src_p.exists() {
+                                    let site_root = if src_p.file_name().and_then(|f| f.to_str()) == Some("wordpress") {
+                                        src_p.parent().unwrap_or(&src_p)
+                                    } else {
+                                        &src_p
+                                    };
+                                    if let Some(ws) = site_root.parent() {
+                                        if ws.exists() && !found_paths.iter().any(|p| p == ws) {
+                                            found_paths.push(ws.to_path_buf());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Vérification des emplacements de développement types
+    let candidates = [
+        "G:\\Workspace",
+        "E:\\E-Dev\\wordpress",
+        "E:\\E-Dev",
+        "C:\\laragon\\www",
+        "C:\\wamp64\\www",
+        "C:\\xampp\\htdocs",
+    ];
+
+    for c in &candidates {
+        let p = PathBuf::from(c);
+        if p.exists() && !found_paths.iter().any(|existing| existing == &p) {
+            found_paths.push(p);
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Some(home) = dirs::home_dir() {
+            for sub in &["Workspace", "Sites", "html", "Projects"] {
+                let p = home.join(sub);
+                if p.exists() && !found_paths.iter().any(|existing| existing == &p) {
+                    found_paths.push(p);
+                }
+            }
+        }
+    }
+
+    let colors = ["#38BDF8", "#F59E0B", "#8BC34A", "#EC4899", "#A855F7", "#6366F1"];
+    let mut entries = vec![];
+    for (i, path) in found_paths.into_iter().enumerate() {
+        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| path.to_string_lossy().to_string());
+        let color = colors[i % colors.len()].to_string();
+        entries.push(WorkspaceEntry {
+            name,
+            path: path.to_string_lossy().to_string(),
+            color,
+        });
+    }
+
+    Ok(entries)
 }
 
 /// Fait évoluer la version de PHP d'un site (modifie le docker-compose et redémarre)
@@ -446,6 +690,28 @@ pub async fn set_site_domain(
                 let ps_cmd = format!("Add-Content -Path 'C:\\Windows\\System32\\drivers\\etc\\hosts' -Value '`n127.0.0.1 {}'", clean_domain);
                 let _ = new_command("powershell")
                     .args(["-NoProfile", "-Command", &format!("Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command {}' -WindowStyle Hidden", ps_cmd)])
+                    .output();
+            }
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let hosts_path = "/etc/hosts";
+        let needs_entry = match fs::read_to_string(hosts_path) {
+            Ok(content) => !content.contains(clean_domain),
+            Err(_) => true,
+        };
+
+        if needs_entry {
+            let entry = format!("\n127.0.0.1 {}\n", clean_domain);
+            let direct_write = fs::OpenOptions::new().append(true).open(hosts_path).map(|mut f| {
+                use std::io::Write;
+                let _ = f.write_all(entry.as_bytes());
+            });
+
+            if direct_write.is_err() {
+                let _ = new_command("sh")
+                    .args(["-c", &format!("echo '127.0.0.1 {}' | pkexec tee -a /etc/hosts || echo '127.0.0.1 {}' | sudo tee -a /etc/hosts", clean_domain, clean_domain)])
                     .output();
             }
         }
@@ -1013,48 +1279,99 @@ pub async fn get_site_details(site_path: String, compose_dir: String) -> Result<
         }
     }
 
-    // 3. Lire les utilisateurs MySQL avec le préfixe dynamique
+    // 3. Lire les utilisateurs réels
     let mut users = vec![];
     if is_running {
+        let site_lower = name.to_lowercase();
+        let db_container = active_containers.iter().find(|c| {
+            let clower = c.name.to_lowercase();
+            clower.contains(&site_lower) && (clower.ends_with("-db") || clower.contains("mysql") || clower.contains("mariadb") || clower.contains("-database"))
+        }).map(|c| c.name.clone()).unwrap_or_else(|| format!("{}-db", site_lower));
+
+        let wp_container = active_containers.iter().find(|c| {
+            let clower = c.name.to_lowercase();
+            clower.contains(&site_lower) && (clower.ends_with("-wp") || clower.contains("wordpress") || clower.contains("-web"))
+        }).map(|c| c.name.clone()).unwrap_or_else(|| format!("{}-wp", site_lower));
+
         let sql = format!(
-            "SELECT ID, user_login, user_email, user_registered, display_name FROM {name}.{prefix}users;",
-            name = db_cfg.name,
+            "SELECT u.ID, u.user_login, u.user_email, u.user_registered, u.display_name, COALESCE(m.meta_value, '') as role_meta FROM {prefix}users u LEFT JOIN {prefix}usermeta m ON u.ID = m.user_id AND m.meta_key = '{prefix}capabilities';",
             prefix = db_cfg.prefix
         );
 
         let db_out = new_command("docker")
-            .args(["compose", "exec", "-T", "db", "mysql", "-u", "root", &format!("-p{}", db_cfg.pass), "-e", &sql])
-            .current_dir(compose_path)
+            .args(["exec", &db_container, "mysql", "-u", "root", &format!("-p{}", db_cfg.pass), &db_cfg.name, "-e", &sql])
             .output();
 
+        let mut parsed_ok = false;
         if let Ok(out) = db_out {
-            let text = String::from_utf8_lossy(&out.stdout);
-            for line in text.lines().skip(1) {
-                let parts: Vec<&str> = line.split('\t').collect();
-                if parts.len() >= 4 {
-                    let uid = parts[0].parse::<u64>().ok();
-                    users.push(WpUserDetail {
-                        id: uid,
-                        user_login: parts[1].to_string(),
-                        user_email: parts[2].to_string(),
-                        user_registered: parts[3].to_string(),
-                        display_name: parts.get(4).unwrap_or(&parts[1]).to_string(),
-                        role: "administrator".to_string(),
-                    });
+            if out.status.success() {
+                let text = String::from_utf8_lossy(&out.stdout);
+                for line in text.lines().skip(1) {
+                    let parts: Vec<&str> = line.split('\t').collect();
+                    if parts.len() >= 4 {
+                        let uid = parts[0].parse::<u64>().ok();
+                        let raw_role = parts.get(5).unwrap_or(&"");
+                        let role = if raw_role.contains("administrator") {
+                            "administrator"
+                        } else if raw_role.contains("editor") {
+                            "editor"
+                        } else if raw_role.contains("author") {
+                            "author"
+                        } else if raw_role.contains("contributor") {
+                            "contributor"
+                        } else if raw_role.contains("subscriber") {
+                            "subscriber"
+                        } else {
+                            "administrator"
+                        };
+
+                        users.push(WpUserDetail {
+                            id: uid,
+                            user_login: parts[1].to_string(),
+                            user_email: parts[2].to_string(),
+                            user_registered: parts[3].to_string(),
+                            display_name: parts.get(4).unwrap_or(&parts[1]).to_string(),
+                            role: role.to_string(),
+                        });
+                        parsed_ok = true;
+                    }
                 }
             }
         }
-    }
 
-    if users.is_empty() {
-        users.push(WpUserDetail {
-            id: Some(1),
-            user_login: "admin".to_string(),
-            user_email: "admin@local.test".to_string(),
-            user_registered: Utc::now().format("%Y-%m-%d").to_string(),
-            display_name: "Administrateur".to_string(),
-            role: "administrator".to_string(),
-        });
+        if !parsed_ok {
+            let wp_cli_out = new_command("docker")
+                .args(["exec", &wp_container, "wp", "user", "list", "--format=json", "--allow-root"])
+                .output();
+
+            if let Ok(out) = wp_cli_out {
+                if out.status.success() {
+                    let text = String::from_utf8_lossy(&out.stdout);
+                    if let Ok(json_arr) = serde_json::from_str::<Vec<serde_json::Value>>(&text) {
+                        for item in json_arr {
+                            let uid = item["ID"].as_str().and_then(|s| s.parse::<u64>().ok())
+                                .or_else(|| item["ID"].as_u64());
+                            let login = item["user_login"].as_str().unwrap_or("").to_string();
+                            let email = item["user_email"].as_str().unwrap_or("").to_string();
+                            let reg = item["user_registered"].as_str().unwrap_or("").to_string();
+                            let dname = item["display_name"].as_str().unwrap_or(&login).to_string();
+                            let role = item["roles"].as_str().unwrap_or("administrator").to_string();
+
+                            if !login.is_empty() {
+                                users.push(WpUserDetail {
+                                    id: uid,
+                                    user_login: login,
+                                    user_email: email,
+                                    user_registered: reg,
+                                    display_name: dname,
+                                    role,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // 4. Logs en direct depuis Docker compose

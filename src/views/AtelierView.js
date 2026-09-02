@@ -4,6 +4,7 @@ import { showNewSiteModal } from '../components/NewSiteModal.js'
 import { showImportModal } from '../components/ImportModal.js'
 import { showPhpPatchNoteModal } from '../components/PhpPatchNoteModal.js'
 import { showResolvePortModal } from '../components/ResolvePortModal.js'
+import { showAddWorkspaceModal } from '../components/AddWorkspaceModal.js'
 import { invoke } from '@tauri-apps/api/core'
 import { save } from '@tauri-apps/plugin-dialog'
 import { getConfig } from '../configStore.js'
@@ -37,6 +38,14 @@ export function renderAtelier(el) {
   const isSelectedOnline = currentSelected?.status === 'online'
 
   el.innerHTML = `
+    <!-- Bannière de Scan en cours -->
+    ${state.isScanning ? `
+      <div style="background:var(--surf2);border-bottom:1px solid var(--bd);padding:9px 24px;font-size:12px;color:var(--cy);display:flex;align-items:center;gap:10px;">
+        <span class="animate-spin" style="font-size:15px;display:inline-block;">🔄</span>
+        <span>Scan des dossiers de travail et détection des conteneurs Docker en cours…</span>
+      </div>
+    ` : ''}
+
     <!-- En-tête de l'Atelier -->
     <div style="
       flex-shrink:0; border-bottom:1px solid var(--bd); padding:16px 24px;
@@ -58,8 +67,8 @@ export function renderAtelier(el) {
 
       <!-- Actions globales -->
       <div style="display:flex;align-items:center;gap:10px;">
-        <button class="btn btn-elev btn-sm" onclick="window.wpScan()">
-          🔄 Scanner
+        <button class="btn btn-elev btn-sm" ${state.isScanning ? 'disabled' : ''} onclick="window.wpScan()">
+          ${state.isScanning ? '<span class="animate-spin" style="display:inline-block;">🔄</span> Scan…' : '🔄 Scanner'}
         </button>
         <button class="btn btn-elev btn-sm" onclick="window.wpOpenImport()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
@@ -98,13 +107,11 @@ export function renderAtelier(el) {
       <div style="display:flex;align-items:center;gap:4px;background:var(--surf);border:1px solid var(--bd);border-radius:8px;padding:2px;">
         <button class="btn btn-ghost btn-sm"
           style="padding:4px 8px;border-radius:6px;background:${state.layout === 'grid' ? 'var(--surf2)' : 'transparent'};color:${state.layout === 'grid' ? 'var(--tx)' : 'var(--tx3)'}"
-          title="Vue en grille"
           onclick="window.wpSetLayout('grid')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          ⊞ Grille
         </button>
         <button class="btn btn-ghost btn-sm"
           style="padding:4px 8px;border-radius:6px;background:${state.layout === 'list' ? 'var(--surf2)' : 'transparent'};color:${state.layout === 'list' ? 'var(--tx)' : 'var(--tx3)'}"
-          title="Vue en liste"
           onclick="window.wpSetLayout('list')">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
         </button>
@@ -316,19 +323,13 @@ export function renderAtelier(el) {
   }
 
   // Handlers
-  window.wpScan = async () => {
-    try {
-      const paths = state.workspaces.map(w => w.path)
-      state.sites = await invoke('scan_workspaces', { paths })
-      if (state.selectedSite) {
-        state.selectedSite = state.sites.find(s => s.path === state.selectedSite.path) || state.sites[0]
-      }
-      renderAtelier(el)
-    } catch (e) {
-      console.warn('Scan échoué :', e)
+  window.wpScan = () => {
+    if (window.wpScanWorkspaces) {
+      window.wpScanWorkspaces()
     }
   }
 
+  window.wpOpenAddWorkspace = () => showAddWorkspaceModal()
   window.wpOpenNew = () => showNewSiteModal()
   window.wpOpenImport = () => showImportModal()
 

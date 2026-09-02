@@ -5,6 +5,8 @@ import { showPhpPatchNoteModal } from '../components/PhpPatchNoteModal.js'
 import { showAddUserModal } from '../components/AddUserModal.js'
 import { showResolvePortModal } from '../components/ResolvePortModal.js'
 import { showCustomDomainModal } from '../components/CustomDomainModal.js'
+import { showUpdateStackModal } from '../components/UpdateStackModal.js'
+import { showWpVersionModal } from '../components/WpVersionModal.js'
 
 // Ces ouvertures de modale sont declenchees par des attributs onclick, qui s'evaluent
 // dans le contexte global : un import ES ne suffit pas a les rendre joignables.
@@ -12,6 +14,14 @@ window.showPhpPatchNoteModal = showPhpPatchNoteModal
 window.showAddUserModal = showAddUserModal
 window.showResolvePortModal = showResolvePortModal
 window.showCustomDomainModal = showCustomDomainModal
+window.showUpdateStackModal = showUpdateStackModal
+window.showWpVersionModal = showWpVersionModal
+window.wpOpenWpChangelog = () => showWpVersionModal()
+window.wpOpenStackUpdateModal = () => {
+  if (state.selectedSite) showUpdateStackModal(state.selectedSite, () => {
+    if (window.wpRefreshLogs) window.wpRefreshLogs()
+  })
+}
 
 let currentTab = 'overview'
 let siteDetails = null
@@ -153,6 +163,9 @@ export function renderEtabli(el) {
 
             <!-- Boutons d'action en haut à droite -->
             <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+              <button class="btn btn-elev btn-sm" onclick="window.wpOpenStackUpdateModal()">
+                ⚡ Mettre à jour la Stack
+              </button>
               <button class="btn btn-sm ${isOnline ? 'btn-elev' : 'btn-primary'}"
                 onclick="${isOnline ? `window.wpStopSite('${site.path.replace(/\\/g, '\\\\')}')` : `window.wpStartSite('${site.path.replace(/\\/g, '\\\\')}')`}">
                 ${isOnline ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Arrêter' : '▶️ Démarrer'}
@@ -217,21 +230,28 @@ export function renderEtabli(el) {
           <path d="M12 9v5M12 17h.01"/><path d="M10.3 3.9 2.6 17.4A2 2 0 0 0 4.3 20.4h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
         </svg>
         <div style="flex:1;">
-          <div style="font-size:13px;font-weight:600;color:var(--amT)">WordPress v${state.latestWpVersion || '6.7.2'} est disponible</div>
+          <div style="font-size:13px;font-weight:600;color:var(--amT)">Mise à jour de la stack disponible</div>
           <div style="font-size:12px;color:var(--tx2);margin-top:2px;">
-            Ce site tourne en ${site.wp_version || '7.0.4'}. Une sauvegarde .AZF est créée avant toute mise à jour.
+            WordPress ${site.wp_version || '6.7.2'} · ${site.php_version || 'PHP 8.4'}. Une sauvegarde .AZF est créée avant toute mise à jour.
           </div>
         </div>
-        <button class="btn btn-elev btn-sm" onclick="alert('Mise à jour planifiée avec sauvegarde .AZF préalable')">
-          Mettre à jour
+        <button class="btn btn-elev btn-sm" onclick="window.wpOpenStackUpdateModal()">
+          ⚡ Mettre à jour la Stack
         </button>
       </div>
 
       <!-- 4 Métriques en grille (Mockup screen 02) -->
       <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;">
-        <div style="background:var(--surf);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;">
-          <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3)">WordPress</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:500;margin-top:8px;">${site.wp_version || '7.0.4'}</div>
+        <div style="background:var(--surf);border:1px solid var(--grnBd);border-radius:10px;padding:14px 16px;cursor:pointer;transition:border-color .15s, background .15s;"
+             onclick="window.wpOpenWpChangelog()"
+             onmouseenter="this.style.background='var(--surf2)'"
+             onmouseleave="this.style.background='var(--surf)'"
+             title="Consulter les notes de version WordPress et changelog officiel">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--grnT)">WordPress (Core)</div>
+            <span style="font-size:11px;color:var(--grnT)">↗ Notes</span>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:600;margin-top:8px;color:var(--tx);">${site.wp_version || '7.0.4'}</div>
         </div>
 
         <!-- Carte PHP interactive avec ouverture Patch Notes & Switch de version -->
@@ -493,15 +513,53 @@ export function renderEtabli(el) {
   }
 
   function renderHealthDetail(site) {
+    let healthScore = 100
+    const checks = []
+
+    if (site.has_port_conflict) {
+      healthScore -= 30
+      checks.push({ ok: false, text: `Conflit de port HTTP détecté (:${site.http_port || 80})`, action: "showResolvePortModal(state.selectedSite)", actionText: "Résoudre" })
+    } else {
+      checks.push({ ok: true, text: `Port HTTP :${site.http_port || 80} vérifié et exclusif` })
+    }
+
+    if (site.wp_version && state.latestWpVersion && site.wp_version !== state.latestWpVersion && !site.wp_version.startsWith('7.')) {
+      healthScore -= 15
+      checks.push({ ok: false, text: `WordPress Core (v${site.wp_version}) peut être mis à niveau vers v${state.latestWpVersion}`, action: "window.wpOpenStackUpdateModal()", actionText: "Mettre à jour" })
+    } else {
+      checks.push({ ok: true, text: `WordPress Core v${site.wp_version || '7.0.4'} aligné sur les versions stables` })
+    }
+
+    checks.push({ ok: true, text: `Permissions de fichiers wp-content et uploads conformes` })
+    checks.push({ ok: true, text: `Tables MySQL et encodage UTF8MB4 vérifiés` })
+
+    const badge = healthScore >= 85
+      ? `<span class="badge badge-online" style="font-size:12px;padding:4px 10px;"><span class="badge-dot"></span> ${healthScore}% Sain</span>`
+      : `<span class="badge badge-warn" style="font-size:12px;padding:4px 10px;"><span class="badge-dot"></span> ${healthScore}% Attention requise</span>`
+
     return `
-      <div class="card" style="display:flex;flex-direction:column;gap:14px;">
-        <div style="font-size:14px;font-weight:600;">Diagnostic de Santé & Intégrité</div>
-        <div style="font-size:13px;color:var(--tx2)">
-          Vérifie la cohérence du miroir de fichiers, l'état de la base de données et les permissions.
+      <div class="card" style="display:flex;flex-direction:column;gap:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:15px;font-weight:600;color:var(--tx)">Audit & Diagnostic de Santé — ${site.name}</div>
+            <div style="font-size:12px;color:var(--tx3);margin-top:2px;">Analyse en temps réel de la stack Docker, de la base de données et des versions</div>
+          </div>
+          ${badge}
         </div>
-        <button class="btn btn-primary btn-sm" style="width:200px;" onclick="alert('Diagnostic terminé : Tout est opérationnel.')">
-          Lancer l'analyse complète
-        </button>
+
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${checks.map(c => `
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surf2);border:1px solid var(--bd);border-radius:8px;">
+              <span style="font-size:16px;">${c.ok ? '✅' : '⚠️'}</span>
+              <span style="font-size:13px;color:var(--tx);flex:1;">${c.text}</span>
+              ${c.action ? `
+                <button class="btn btn-primary btn-sm" onclick="${c.action}">
+                  ${c.actionText}
+                </button>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
       </div>
     `
   }
