@@ -34,9 +34,12 @@ export function renderAtelier(el) {
   if (!state.selectedSite && filtered.length > 0) {
     state.selectedSite = filtered[0]
   }
-
   const currentSelected = state.selectedSite || (filtered.length > 0 ? filtered[0] : null)
   const isSelectedOnline = currentSelected?.status === 'online'
+
+  const latestWp = state.latestWpVersion || '7.1'
+  const hasUpdate = (s) => s.wp_version && s.wp_version !== latestWp
+  const updatesCount = filtered.filter(hasUpdate).length
 
   el.innerHTML = `
     <!-- Bannière de Scan en cours -->
@@ -53,25 +56,18 @@ export function renderAtelier(el) {
       display:flex; align-items:center; justify-content:space-between; gap:16px;
     ">
       <div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="font-family:'Poppins',sans-serif;font-size:20px;font-weight:600;color:var(--tx);">
-            ${isAll ? 'Tous les sites' : (currentWs?.name || 'Atelier')}
+        <div style="display:flex;align-items:baseline;gap:12px;">
+          <div style="font-family:'Poppins',sans-serif;font-size:22px;font-weight:700;color:var(--tx);">
+            Atelier
           </div>
-          <span class="badge badge-stopped" style="font-size:12px;font-weight:600;">
-            ${filtered.length} site${filtered.length > 1 ? 's' : ''}
-          </span>
-        </div>
-        <div style="font-size:12px;color:var(--tx3);margin-top:2px;">
-          ${isAll ? 'Vue consolidée de tous vos espaces de travail' : (currentWs?.path || '')}
+          <div style="font-size:12.5px;color:var(--tx3);">
+            ${filtered.length} site(s) affiché(s) · ${updatesCount} mise(s) à jour disponible(s)
+          </div>
         </div>
       </div>
 
       <!-- Actions globales -->
       <div style="display:flex;align-items:center;gap:10px;">
-        <button class="btn btn-elev btn-sm" onclick="window.wpOpenWpVersionModal()" title="Consulter les notes de version WordPress et les sites concernés" style="display:flex;align-items:center;gap:6px;">
-          <span>🌐</span> WP ${state.latestWpVersion || '7.1'}
-          <span style="width:6px;height:6px;border-radius:50%;background:#4ade80;"></span>
-        </button>
         <button class="btn btn-elev btn-sm" ${state.isScanning ? 'disabled' : ''} onclick="window.wpScan()">
           ${state.isScanning ? '<span class="animate-spin" style="display:inline-block;">🔄</span> Scan…' : '🔄 Scanner'}
         </button>
@@ -79,9 +75,8 @@ export function renderAtelier(el) {
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           Importer .AZF
         </button>
-        <button class="btn btn-primary btn-sm" onclick="window.wpOpenNew()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          Nouveau site
+        <button class="btn btn-sm" style="background:#84cc16;color:#0b0f17;font-weight:700;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;" onclick="window.wpOpenNew()">
+          + Nouveau site
         </button>
       </div>
     </div>
@@ -118,7 +113,7 @@ export function renderAtelier(el) {
         <button class="btn btn-ghost btn-sm"
           style="padding:4px 8px;border-radius:6px;background:${state.layout === 'list' ? 'var(--surf2)' : 'transparent'};color:${state.layout === 'list' ? 'var(--tx)' : 'var(--tx3)'}"
           onclick="window.wpSetLayout('list')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          ☰ Liste
         </button>
       </div>
     </div>
@@ -147,6 +142,22 @@ export function renderAtelier(el) {
         <!-- Grille de cartes -->
         <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;">
           ${filtered.map(site => renderSiteCard(site, currentSelected && currentSelected.path === site.path)).join('')}
+
+          <!-- 5ème carte : Nouveau site en pointillés -->
+          <div onclick="window.wpOpenNew()"
+            id="dashed-new-site-card"
+            style="
+              cursor:pointer; border:1px dashed var(--bds); border-radius:12px; padding:20px;
+              display:flex; flex-direction:column; align-items:center; justify-content:center;
+              gap:10px; min-height:160px; color:var(--tx3); background:transparent; transition:border-color .15s, color .15s;
+            "
+            onmouseenter="this.style.borderColor='var(--cy)'; this.style.color='var(--tx)'"
+            onmouseleave="this.style.borderColor='var(--bds)'; this.style.color='var(--tx3)'"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            <div style="font-size:13px;font-weight:600">Nouveau site</div>
+            <div style="font-size:11px;text-align:center;line-height:1.5;color:var(--tx3)">ou déposez un fichier<br /><span style="font-family:'JetBrains Mono',monospace">.azf</span> ici</div>
+          </div>
         </div>
       ` : `
         <!-- Vue Liste détaillée -->

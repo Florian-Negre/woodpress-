@@ -13,7 +13,7 @@ export function renderSiteCard(site, isSelected) {
   const isStopping = site.status === 'stopping'
   const isError = site.status === 'error'
   const hasConflict = site.has_port_conflict
-  const hasWpUpdate = site.wp_version && state.latestWpVersion && site.wp_version !== state.latestWpVersion && !site.wp_version.startsWith('7.')
+  const hasWpUpdate = site.wp_version && state.latestWpVersion && site.wp_version !== state.latestWpVersion
 
   const statusBadge = isLegacy
     ? `<div class="badge badge-warn" style="font-size:11px;"><span class="badge-dot"></span>${site.legacy_stack || 'Laragon/WAMP'}</div>`
@@ -104,17 +104,9 @@ export function renderSiteCard(site, isSelected) {
           ` : ''}
         </div>
 
+        <!-- Métadonnées & Port -->
         <div class="font-mono" style="font-size: 11px; color: var(--tx3); display: flex; align-items: center; gap: 6px;">
-          <span style="display:flex;align-items:center;gap:4px;">
-            WP ${site.wp_version || '6.7.2'}
-            ${hasWpUpdate ? `
-              <span style="background:var(--amBg);color:var(--am);border:1px solid var(--amBd);border-radius:4px;padding:1px 4px;font-size:9px;font-weight:700;cursor:pointer;"
-                title="Mise à jour disponible vers v${state.latestWpVersion} · Cliquez pour mettre à jour"
-                onclick="event.stopPropagation(); window.wpOpenStackUpdate('${site.path.replace(/\\/g, '\\\\')}')">
-                ⚡ MAJ
-              </span>
-            ` : ''}
-          </span>
+          <span>WP ${site.wp_version || '6.7.2'}</span>
           ${!isLegacy ? `
             <span>·</span>
             <span style="color:var(--cy);cursor:pointer;text-decoration:underline;"
@@ -126,14 +118,23 @@ export function renderSiteCard(site, isSelected) {
         </div>
       </div>
 
+      <!-- Bannière d'alerte jaune/ambre : Mise à jour disponible -->
+      ${hasWpUpdate ? `
+        <div style="display:flex;align-items:center;gap:8px;background:var(--amBg);border:1px solid var(--amBd);border-radius:8px;padding:8px 10px;cursor:pointer;"
+          onclick="event.stopPropagation(); window.wpOpenStackUpdate('${site.path.replace(/\\/g, '\\\\')}')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--am)" stroke-width="1.9" stroke-linecap="round" style="flex-shrink:0;">
+            <path d="M12 9v4M12 16.5h.01" /><path d="M10.3 4.4 3.4 16.6A1.7 1.7 0 0 0 4.9 19.2h14.2a1.7 1.7 0 0 0 1.5-2.6L13.7 4.4a1.7 1.7 0 0 0-3.4 0z" />
+          </svg>
+          <span style="font-size:12px;font-weight:600;color:var(--amT);flex:1;">WordPress ${state.latestWpVersion || '7.1'} disponible</span>
+          <span style="font-size:12px;font-weight:600;color:var(--cy);">Voir</span>
+        </div>
+      ` : ''}
+
       <!-- Boutons d'action -->
       <div style="display: flex; align-items: center; gap: 6px; margin-top: auto;" onclick="event.stopPropagation()">
         ${isLegacy ? `
           <button class="btn btn-primary btn-sm" style="flex:1;" onclick="window.wpOpenContainerizeModal('${site.path.replace(/\\/g, '\\\\')}')">
             ⚡ Conteneuriser Docker
-          </button>
-          <button class="btn btn-elev btn-sm" onclick="window.wpOpenFolder('${site.path.replace(/\\/g, '\\\\')}')">
-            📁
           </button>
         ` : isStarting ? `
           <button class="btn btn-primary btn-sm" style="flex:1;" disabled>
@@ -147,26 +148,28 @@ export function renderSiteCard(site, isSelected) {
           <button class="btn btn-elev btn-sm" style="flex:1;" onclick="window.wpStopSite('${site.path.replace(/\\/g, '\\\\')}')">
             ⏹️ Arrêter
           </button>
-          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="window.wpOpenSiteAdmin(${site.http_port})">
-            🔑 Admin
+          <button class="btn btn-elev btn-sm" style="flex:1;" onclick="window.wpOpenSiteUrl('${site.http_port}')">
+            🌐 Ouvrir
           </button>
         ` : `
-          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="window.wpStartSite('${site.path.replace(/\\/g, '\\\\')}')">
+          <button class="btn btn-sm" style="flex:1;background:#84cc16;color:#0b0f17;font-weight:700;border:none;padding:7px 12px;border-radius:8px;cursor:pointer;" onclick="window.wpStartSite('${site.path.replace(/\\/g, '\\\\')}')">
             ▶️ Démarrer
           </button>
-          <button class="btn btn-elev btn-sm" style="flex:1;" onclick="window.wpOpenFolder('${site.path.replace(/\\/g, '\\\\')}')">
-            📁 Dossier
+          <button class="btn btn-elev btn-sm" style="flex:1;opacity:0.45;cursor:not-allowed;" title="Démarrez le site pour l'ouvrir">
+            🌐 Ouvrir
           </button>
         `}
-        ${!isLegacy ? `
-          <button class="btn btn-ghost btn-sm" style="padding: 6px 8px;" title="Ouvrir dans l'Établi"
-            onclick="window.wpOpenEtabliForSite('${site.path.replace(/\\/g, '\\\\')}')">
-            🔍
-          </button>
-        ` : ''}
+        <button class="btn btn-ghost btn-sm" style="padding: 6px 8px;" title="Menu du site"
+          onclick="window.wpToggleCardMenu('${site.path.replace(/\\/g, '\\\\')}', event)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></svg>
+        </button>
       </div>
     </div>
   `
+}
+
+window.wpOpenSiteUrl = (port) => {
+  if (port) invoke('open_url', { url: `http://localhost:${port}` })
 }
 
 window.wpOpenStackUpdate = (path) => {
