@@ -194,7 +194,7 @@ pub async fn fetch_latest_wp_version() -> Result<String, String> {
         }
     }
 
-    Ok("6.7.2".to_string())
+    Ok("7.1".to_string())
 }
 
 /// Retourne les patch notes officiels d'une version de PHP

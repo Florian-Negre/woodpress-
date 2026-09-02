@@ -5,6 +5,7 @@ import { showImportModal } from '../components/ImportModal.js'
 import { showPhpPatchNoteModal } from '../components/PhpPatchNoteModal.js'
 import { showResolvePortModal } from '../components/ResolvePortModal.js'
 import { showAddWorkspaceModal } from '../components/AddWorkspaceModal.js'
+import { showWpVersionModal } from '../components/WpVersionModal.js'
 import { invoke } from '@tauri-apps/api/core'
 import { save } from '@tauri-apps/plugin-dialog'
 import { getConfig } from '../configStore.js'
@@ -67,6 +68,10 @@ export function renderAtelier(el) {
 
       <!-- Actions globales -->
       <div style="display:flex;align-items:center;gap:10px;">
+        <button class="btn btn-elev btn-sm" onclick="window.wpOpenWpVersionModal()" title="Consulter les notes de version WordPress et les sites concernés" style="display:flex;align-items:center;gap:6px;">
+          <span>🌐</span> WP ${state.latestWpVersion || '7.1'}
+          <span style="width:6px;height:6px;border-radius:50%;background:#4ade80;"></span>
+        </button>
         <button class="btn btn-elev btn-sm" ${state.isScanning ? 'disabled' : ''} onclick="window.wpScan()">
           ${state.isScanning ? '<span class="animate-spin" style="display:inline-block;">🔄</span> Scan…' : '🔄 Scanner'}
         </button>
@@ -330,6 +335,7 @@ export function renderAtelier(el) {
   }
 
   window.wpOpenAddWorkspace = () => showAddWorkspaceModal()
+  window.wpOpenWpVersionModal = () => showWpVersionModal()
   window.wpOpenNew = () => showNewSiteModal()
   window.wpOpenImport = () => showImportModal()
 

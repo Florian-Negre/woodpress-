@@ -23,7 +23,7 @@ export const state = {
   ides: [],
   query: '',
   theme: getConfig().theme || 'dark',
-  latestWpVersion: '6.7.2',
+  latestWpVersion: '7.1',
   isScanning: false,
 }
 
