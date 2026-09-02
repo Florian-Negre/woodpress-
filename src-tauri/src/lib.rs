@@ -34,6 +34,7 @@ pub fn run() {
             sites::containerize_legacy_site,
             sites::add_wp_user,
             sites::get_wp_changelogs,
+            sites::get_live_wp_release_details,
             sites::update_site_stack,
             sites::auto_discover_workspaces,
             azf::inspect_azf,

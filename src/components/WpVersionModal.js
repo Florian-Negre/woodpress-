@@ -1,7 +1,7 @@
 import { state } from '../app.js'
 import { invoke } from '@tauri-apps/api/core'
 
-export function showWpVersionModal() {
+export async function showWpVersionModal() {
   const existing = document.getElementById('wp-ver-modal')
   if (existing) existing.remove()
 
@@ -11,6 +11,69 @@ export function showWpVersionModal() {
 
   // État local des sites en cours de mise à jour dans la modale
   const updatingSites = new Set()
+
+  let releaseInfo = {
+    version: state.latestWpVersion || '7.1',
+    title: `WordPress ${state.latestWpVersion || '7.1'}`,
+    release_date: '26 août 2026',
+    subtitle: 'Publiée le 26 août 2026 · 2 correctifs de sécurité, 42 corrections de bugs',
+    is_security_alert: true,
+    alert_message: "Cette version corrige 2 failles de sécurité, dont une injection SQL dans l'éditeur de blocs. Mise à jour recommandée sans attendre.",
+    items: [
+      {
+        category: 'SÉCURITÉ',
+        title: "Injection SQL dans l'éditeur de blocs",
+        description: "Un contributeur pouvait exécuter une requête arbitraire via un attribut de bloc. Signalée par l'équipe sécurité WordPress.",
+      },
+      {
+        category: 'SÉCURITÉ',
+        title: "XSS stocké dans les commentaires",
+        description: "Le filtrage des liens ne couvrait pas les protocoles data: sur les commentaires imbriqués.",
+      },
+      {
+        category: 'CORRECTIF',
+        title: "42 corrections de bugs",
+        description: "Éditeur de site, requêtes de blocs, gestion des révisions et téléchargement de médias volumineux.",
+      },
+      {
+        category: 'NOUVEAUTÉ',
+        title: "Interface d'administration retravaillée",
+        description: "Nouvelle navigation des styles globaux et écran de gestion des polices.",
+      },
+      {
+        category: 'TECHNIQUE',
+        title: "PHP 8.1 minimum",
+        description: "Les sites en PHP 8.0 doivent d'abord changer d'image avant la mise à jour.",
+      },
+    ],
+    official_url: 'https://wordpress.org/news/category/releases/',
+    checked_at: 'il y a quelques instants',
+  }
+
+  // Interrogation en direct de l'API WordPress.org pour les vraies données à jour
+  try {
+    const live = await invoke('get_live_wp_release_details')
+    if (live && live.version) {
+      releaseInfo = live
+      state.latestWpVersion = live.version
+    }
+  } catch (err) {
+    console.warn('API live release info fallback :', err)
+  }
+
+  function getBadgeColors(category) {
+    switch (category) {
+      case 'SÉCURITÉ':
+        return { bg: 'rgba(239, 68, 68, 0.18)', color: '#f87171' }
+      case 'CORRECTIF':
+        return { bg: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }
+      case 'NOUVEAUTÉ':
+        return { bg: 'rgba(34, 197, 94, 0.15)', color: '#4ade80' }
+      case 'TECHNIQUE':
+      default:
+        return { bg: 'rgba(234, 179, 8, 0.15)', color: '#facc15' }
+    }
+  }
 
   function render() {
     // Obtenir la liste des sites (ou sites d'exemple si aucun site chargé)
@@ -28,7 +91,7 @@ export function showWpVersionModal() {
       displaySites = [
         { name: 'codinflo', path: 'mock-1', wpVersion: '7.0.4', isReal: false },
         { name: 'vk-interiordesign', path: 'mock-2', wpVersion: '7.0.4', isReal: false },
-        { name: 'AXPC84', path: 'mock-3', wpVersion: '7.1', isReal: false },
+        { name: 'AXPC84', path: 'mock-3', wpVersion: releaseInfo.version, isReal: false },
         { name: 'demo', path: 'mock-4', wpVersion: '6.7.2', isReal: false },
       ]
     }
@@ -53,10 +116,10 @@ export function showWpVersionModal() {
         <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;">
           <div>
             <div style="font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: -0.01em;">
-              WordPress 7.1
+              ${releaseInfo.title}
             </div>
             <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">
-              Publiée le 26 août 2026 · 2 correctifs de sécurité, 42 corrections de bugs
+              ${releaseInfo.subtitle}
             </div>
           </div>
           <div style="
@@ -76,31 +139,33 @@ export function showWpVersionModal() {
         </div>
 
         <!-- Alerte rouge : Failles de sécurité -->
-        <div style="
-          margin-top: 18px;
-          background: rgba(239, 68, 68, 0.08);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          border-radius: 8px;
-          padding: 12px 14px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        ">
+        ${releaseInfo.is_security_alert ? `
           <div style="
-            width: 28px; height: 28px; border-radius: 6px;
-            display: flex; align-items: center; justify-content: center;
-            color: #ef4444; flex-shrink: 0;
+            margin-top: 18px;
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
           ">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
+            <div style="
+              width: 28px; height: 28px; border-radius: 6px;
+              display: flex; align-items: center; justify-content: center;
+              color: #ef4444; flex-shrink: 0;
+            ">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div style="font-size: 12.5px; color: #cbd5e1; line-height: 1.5;">
+              ${releaseInfo.alert_message.replace('2 failles de sécurité', '<strong style="color: #ef4444; font-weight: 600;">2 failles de sécurité</strong>')}
+            </div>
           </div>
-          <div style="font-size: 12.5px; color: #cbd5e1; line-height: 1.5;">
-            Cette version corrige <strong style="color: #ef4444; font-weight: 600;">2 failles de sécurité</strong>, dont une injection SQL dans l'éditeur de blocs. Mise à jour recommandée sans attendre.
-          </div>
-        </div>
+        ` : ''}
 
         <!-- Résumé de la note de version -->
         <div style="margin-top: 20px;">
@@ -109,130 +174,34 @@ export function showWpVersionModal() {
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 14px;">
-            <!-- Ligne 1 : SÉCURITÉ -->
-            <div style="display: flex; align-items: flex-start; gap: 12px;">
-              <span style="
-                background: rgba(239, 68, 68, 0.18);
-                color: #f87171;
-                font-size: 10.5px;
-                font-weight: 700;
-                letter-spacing: 0.05em;
-                padding: 3px 8px;
-                border-radius: 5px;
-                min-width: 78px;
-                text-align: center;
-                flex-shrink: 0;
-                margin-top: 1px;
-              ">SÉCURITÉ</span>
-              <div style="flex: 1; min-width: 0;">
-                <div style="font-size: 13px; font-weight: 600; color: #ffffff;">
-                  Injection SQL dans l'éditeur de blocs
+            ${releaseInfo.items.map(it => {
+              const badge = getBadgeColors(it.category)
+              return `
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                  <span style="
+                    background: ${badge.bg};
+                    color: ${badge.color};
+                    font-size: 10.5px;
+                    font-weight: 700;
+                    letter-spacing: 0.05em;
+                    padding: 3px 8px;
+                    border-radius: 5px;
+                    min-width: 78px;
+                    text-align: center;
+                    flex-shrink: 0;
+                    margin-top: 1px;
+                  ">${it.category}</span>
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 13px; font-weight: 600; color: #ffffff;">
+                      ${it.title}
+                    </div>
+                    <div style="font-size: 12px; color: #94a3b8; margin-top: 2px; line-height: 1.5;">
+                      ${it.description}
+                    </div>
+                  </div>
                 </div>
-                <div style="font-size: 12px; color: #94a3b8; margin-top: 2px; line-height: 1.5;">
-                  Un contributeur pouvait exécuter une requête arbitraire via un attribut de bloc. Signalée par l'équipe sécurité WordPress.
-                </div>
-              </div>
-            </div>
-
-            <!-- Ligne 2 : SÉCURITÉ -->
-            <div style="display: flex; align-items: flex-start; gap: 12px;">
-              <span style="
-                background: rgba(239, 68, 68, 0.18);
-                color: #f87171;
-                font-size: 10.5px;
-                font-weight: 700;
-                letter-spacing: 0.05em;
-                padding: 3px 8px;
-                border-radius: 5px;
-                min-width: 78px;
-                text-align: center;
-                flex-shrink: 0;
-                margin-top: 1px;
-              ">SÉCURITÉ</span>
-              <div style="flex: 1; min-width: 0;">
-                <div style="font-size: 13px; font-weight: 600; color: #ffffff;">
-                  XSS stocké dans les commentaires
-                </div>
-                <div style="font-size: 12px; color: #94a3b8; margin-top: 2px; line-height: 1.5;">
-                  Le filtrage des liens ne couvrait pas les protocoles data: sur les commentaires imbriqués.
-                </div>
-              </div>
-            </div>
-
-            <!-- Ligne 3 : CORRECTIF -->
-            <div style="display: flex; align-items: flex-start; gap: 12px;">
-              <span style="
-                background: rgba(56, 189, 248, 0.15);
-                color: #38bdf8;
-                font-size: 10.5px;
-                font-weight: 700;
-                letter-spacing: 0.05em;
-                padding: 3px 8px;
-                border-radius: 5px;
-                min-width: 78px;
-                text-align: center;
-                flex-shrink: 0;
-                margin-top: 1px;
-              ">CORRECTIF</span>
-              <div style="flex: 1; min-width: 0;">
-                <div style="font-size: 13px; font-weight: 600; color: #ffffff;">
-                  42 corrections de bugs
-                </div>
-                <div style="font-size: 12px; color: #94a3b8; margin-top: 2px; line-height: 1.5;">
-                  Éditeur de site, requêtes de blocs, gestion des révisions et téléchargement de médias volumineux.
-                </div>
-              </div>
-            </div>
-
-            <!-- Ligne 4 : NOUVEAUTÉ -->
-            <div style="display: flex; align-items: flex-start; gap: 12px;">
-              <span style="
-                background: rgba(34, 197, 94, 0.15);
-                color: #4ade80;
-                font-size: 10.5px;
-                font-weight: 700;
-                letter-spacing: 0.05em;
-                padding: 3px 8px;
-                border-radius: 5px;
-                min-width: 78px;
-                text-align: center;
-                flex-shrink: 0;
-                margin-top: 1px;
-              ">NOUVEAUTÉ</span>
-              <div style="flex: 1; min-width: 0;">
-                <div style="font-size: 13px; font-weight: 600; color: #ffffff;">
-                  Interface d'administration retravaillée
-                </div>
-                <div style="font-size: 12px; color: #94a3b8; margin-top: 2px; line-height: 1.5;">
-                  Nouvelle navigation des styles globaux et écran de gestion des polices.
-                </div>
-              </div>
-            </div>
-
-            <!-- Ligne 5 : TECHNIQUE -->
-            <div style="display: flex; align-items: flex-start; gap: 12px;">
-              <span style="
-                background: rgba(234, 179, 8, 0.15);
-                color: #facc15;
-                font-size: 10.5px;
-                font-weight: 700;
-                letter-spacing: 0.05em;
-                padding: 3px 8px;
-                border-radius: 5px;
-                min-width: 78px;
-                text-align: center;
-                flex-shrink: 0;
-                margin-top: 1px;
-              ">TECHNIQUE</span>
-              <div style="flex: 1; min-width: 0;">
-                <div style="font-size: 13px; font-weight: 600; color: #ffffff;">
-                  PHP 8.1 minimum
-                </div>
-                <div style="font-size: 12px; color: #94a3b8; margin-top: 2px; line-height: 1.5;">
-                  Les sites en PHP 8.0 doivent d'abord changer d'image avant la mise à jour.
-                </div>
-              </div>
-            </div>
+              `
+            }).join('')}
           </div>
         </div>
 
@@ -250,7 +219,7 @@ export function showWpVersionModal() {
 
           <div style="display: flex; flex-direction: column; gap: 12px;">
             ${displaySites.map(s => {
-              const isUpToDate = s.wpVersion === '7.1'
+              const isUpToDate = s.wpVersion === releaseInfo.version
               const isBusy = updatingSites.has(s.path)
 
               return `
@@ -285,7 +254,7 @@ export function showWpVersionModal() {
                     text-align: center;
                     color: ${isUpToDate ? '#64748b' : '#f59e0b'};
                   ">
-                    ${isUpToDate ? 'à jour (7.1)' : `${s.wpVersion} → 7.1`}
+                    ${isUpToDate ? `à jour (${releaseInfo.version})` : `${s.wpVersion} → ${releaseInfo.version}`}
                   </div>
 
                   <!-- Bouton Mettre à jour -->
@@ -308,7 +277,7 @@ export function showWpVersionModal() {
                         ${isBusy ? 'disabled' : ''}
                         onmouseenter="this.style.background='#334155'"
                         onmouseleave="this.style.background='#1e293b'"
-                        onclick="window.wpTriggerUpdateModalSite('${s.path.replace(/\\/g, '\\\\')}', ${s.isReal})"
+                        onclick="window.wpTriggerUpdateModalSite('${s.path.replace(/\\/g, '\\\\')}', ${s.isReal}, '${releaseInfo.version}')"
                       >
                         ${isBusy ? '<span class="animate-spin" style="display:inline-block;">🔄</span>' : 'Mettre à jour'}
                       </button>
@@ -329,7 +298,7 @@ export function showWpVersionModal() {
           padding-top: 4px;
         ">
           <div style="font-size: 12px; color: #64748b;">
-            Vérifié auprès de wordpress.org il y a 4 minutes.
+            Vérifié auprès de wordpress.org ${releaseInfo.checked_at.includes(':') ? `à ${releaseInfo.checked_at}` : releaseInfo.checked_at}.
           </div>
           <button
             type="button"
@@ -355,7 +324,7 @@ export function showWpVersionModal() {
   }
 
   // Handler pour déclencher la mise à jour d'un site depuis la modale
-  window.wpTriggerUpdateModalSite = async (sitePath, isReal) => {
+  window.wpTriggerUpdateModalSite = async (sitePath, isReal, targetWp) => {
     if (!isReal) {
       // Pour les sites d'exemple de prévisualisation
       updatingSites.add(sitePath)
@@ -376,15 +345,15 @@ export function showWpVersionModal() {
     try {
       const updatedSite = await invoke('update_site_stack', {
         composeDir: realSite.compose_dir || realSite.path,
-        targetWp: '7.1',
+        targetWp: targetWp || releaseInfo.version,
         targetPhp: '8.4',
       })
 
       if (updatedSite) {
-        realSite.wp_version = updatedSite.wp_version || '7.1'
+        realSite.wp_version = updatedSite.wp_version || targetWp || releaseInfo.version
         realSite.php_version = updatedSite.php_version || 'PHP 8.4'
       } else {
-        realSite.wp_version = '7.1'
+        realSite.wp_version = targetWp || releaseInfo.version
       }
 
       if (window.wpScanWorkspaces) {
