@@ -38,6 +38,7 @@ pub fn run() {
             sites::update_site_stack,
             sites::auto_discover_workspaces,
             azf::inspect_azf,
+            azf::inspect_archive,
             azf::export_azf,
             azf::import_azf,
             system::get_free_port,

@@ -2,175 +2,446 @@ import { state, navigate } from '../app.js'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 
-export function showImportModal() {
+export function showImportModal(initialFilePath = null) {
   const existing = document.getElementById('wp-import-modal')
   if (existing) existing.remove()
 
   const modalOverlay = document.createElement('div')
   modalOverlay.id = 'wp-import-modal'
   modalOverlay.className = 'modal-overlay'
+  document.body.appendChild(modalOverlay)
 
-  let selectedFilePath = null
-  let manifest = null
+  let selectedFormat = 'azf' // 'azf' | 'zip' | 'wpress'
+  let selectedFilePath = initialFilePath || null
+  let inspection = null
   let siteName = ''
   let targetWs = state.workspaces[0]?.path || ''
-  let targetPort = 8086
+  let httpPort = 8082
+  let dbPort = 3306
+  let isHttpTaken = false
+  let isDbTaken = false
+  let suggestedHttp = 8085
+  let suggestedDb = 3310
   let isDeploying = false
+  let deployStatus = ''
+  let errorMessage = ''
 
-  // Récupérer un port libre par défaut
-  invoke('get_free_port', { start: 8085, end: 8100 })
-    .then(p => { targetPort = p; render() })
-    .catch(() => {})
+  function detectFormatFromPath(path) {
+    if (!path) return 'azf'
+    const lower = path.toLowerCase()
+    if (lower.endsWith('.wpress')) return 'wpress'
+    if (lower.endsWith('.zip')) return 'zip'
+    return 'azf'
+  }
+
+  async function handleFileSelect(filePath) {
+    if (!filePath) return
+    selectedFilePath = filePath
+    selectedFormat = detectFormatFromPath(filePath)
+    errorMessage = ''
+    render()
+
+    try {
+      const res = await invoke('inspect_archive', { archivePath: filePath })
+      inspection = res
+      selectedFormat = res.format || selectedFormat
+      siteName = res.siteName || siteName
+      httpPort = res.originalHttpPort || 8082
+      dbPort = res.originalDbPort || 3306
+      isHttpTaken = res.isHttpPortTaken || false
+      isDbTaken = res.isDbPortTaken || false
+      suggestedHttp = res.suggestedHttpPort || 8085
+      suggestedDb = res.suggestedDbPort || 3310
+
+      // Si le port par défaut est pris, pré-appliquer le port suggéré ou laisser l'alerte
+      render()
+    } catch (err) {
+      console.warn('Erreur inspection archive :', err)
+      errorMessage = typeof err === 'string' ? err : 'Impossible de lire cette archive'
+      render()
+    }
+  }
+
+  // Si un fichier a été transmis dès l'ouverture (ex: drag & drop sur la 5e carte)
+  if (initialFilePath) {
+    handleFileSelect(initialFilePath)
+  }
 
   function render() {
+    const isReady = !!selectedFilePath && siteName.trim().length > 0 && !isDeploying
+    const previewPath = targetWs ? `${targetWs}\\${siteName || 'nom-du-dossier'}` : siteName
+
     modalOverlay.innerHTML = `
-      <div class="modal" style="width: 620px; max-width: 95vw;">
-        <!-- Header -->
-        <div class="modal-header">
-          <div style="font-family:'Poppins',sans-serif;font-size:17px;font-weight:600;color:var(--tx);">Importer une archive .AZF</div>
-          <div style="font-size:12px;color:var(--tx3);margin-top:3px;">Passerelle officielle WoodPress Bridge v3.0</div>
+      <div class="modal" style="width: 640px; max-width: 95vw; background: #0c121d; border: 1px solid #1e293b; border-radius: 14px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); overflow: hidden;">
+        
+        <!-- En-tête -->
+        <div style="padding: 24px 28px 18px; border-bottom: 1px solid #182234;">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between;">
+            <div>
+              <div style="font-family:'Poppins',sans-serif; font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px;">
+                Importer un projet WordPress
+              </div>
+              <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+                Formats acceptés : .azf, .zip, .wpress
+              </div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="window.importModalClose()" style="color:#64748b; font-size:18px; line-height:1; padding:4px 8px;">✕</button>
+          </div>
         </div>
 
-        <!-- Body -->
-        <div class="modal-body" style="padding:24px;display:flex;flex-direction:column;gap:16px;">
-          ${!manifest ? `
-            <!-- Zone Drag & Drop / Sélection -->
-            <div id="import-dropzone"
-              style="
-                cursor:pointer; border:1px dashed var(--bds); border-radius:10px;
-                padding:36px 24px; display:flex; flex-direction:column; align-items:center;
-                justify-content:center; gap:12px; background:var(--surf);
-                transition: border-color .15s, background .15s;
-              "
-              onclick="window.importPickFile()"
-              onmouseenter="this.style.borderColor='var(--cy)';this.style.background='var(--surf2)'"
-              onmouseleave="this.style.borderColor='var(--bds)';this.style.background='var(--surf)'"
-            >
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--cy)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 4v10M8 10l4 4 4-4M4 18h16"/>
-              </svg>
-              <div style="font-size:14px;font-weight:600;color:var(--tx)">Cliquez pour sélectionner une archive .AZF</div>
-              <div style="font-size:12px;color:var(--tx3)">Fichiers .azf et .zip générés par WoodPress Bridge</div>
-            </div>
-          ` : `
-            <!-- Fichier inspecté & validé -->
-            <div class="card" style="display:flex;align-items:center;gap:12px;background:var(--surf2);border:1px solid var(--grnBd)">
-              <span style="font-size:28px">📦</span>
-              <div style="flex:1">
-                <div style="font-size:14px;font-weight:600;color:var(--tx)">${manifest.siteName || manifest.projectName}</div>
-                <div class="font-mono" style="font-size:11px;color:var(--grnT);margin-top:2px;">
-                  WordPress v${manifest.wpVersion || '7.0.4'} · PHP ${manifest.phpVersion || '8.4'} · Format AZF ${manifest.formatVersion}
+        <!-- Corps de la modale -->
+        <div style="padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; max-height: 75vh; overflow-y: auto;">
+          
+          <!-- 1. Format de l'archive (3 Cartes Radio) -->
+          <div>
+            <div style="font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">Format de l'archive</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              
+              <!-- Paquet .azf -->
+              <div onclick="window.importSetFormat('azf')"
+                style="
+                  display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; cursor: pointer;
+                  background: ${selectedFormat === 'azf' ? '#0f1f18' : '#0e1626'};
+                  border: 1px solid ${selectedFormat === 'azf' ? '#84cc16' : '#1e293b'};
+                  transition: all .15s ease;
+                "
+              >
+                <div style="
+                  width: 18px; height: 18px; border-radius: 50%; border: 2px solid ${selectedFormat === 'azf' ? '#84cc16' : '#475569'};
+                  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+                ">
+                  ${selectedFormat === 'azf' ? '<div style="width: 8px; height: 8px; border-radius: 50%; background: #84cc16;"></div>' : ''}
+                </div>
+                <div style="flex: 1;">
+                  <div style="font-size: 13px; font-weight: 700; color: #ffffff;">Paquet WordPress .azf</div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 1px;">Site, base et configuration. Format recommandé.</div>
                 </div>
               </div>
-              <button class="btn btn-ghost btn-sm" onclick="window.importResetFile()">Changer</button>
-            </div>
 
-            <!-- Nom du projet local -->
-            <div>
-              <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:6px;">Nom du dossier local</div>
-              <input id="import-site-name" class="input" value="${siteName}" placeholder="nom-du-site" />
-            </div>
+              <!-- Archive .zip -->
+              <div onclick="window.importSetFormat('zip')"
+                style="
+                  display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; cursor: pointer;
+                  background: ${selectedFormat === 'zip' ? '#0f1f18' : '#0e1626'};
+                  border: 1px solid ${selectedFormat === 'zip' ? '#84cc16' : '#1e293b'};
+                  transition: all .15s ease;
+                "
+              >
+                <div style="
+                  width: 18px; height: 18px; border-radius: 50%; border: 2px solid ${selectedFormat === 'zip' ? '#84cc16' : '#475569'};
+                  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+                ">
+                  ${selectedFormat === 'zip' ? '<div style="width: 8px; height: 8px; border-radius: 50%; background: #84cc16;"></div>' : ''}
+                </div>
+                <div style="flex: 1;">
+                  <div style="font-size: 13px; font-weight: 700; color: #ffffff;">Archive WordPress standard .zip</div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 1px;">Fichiers du site. Versions et ports à renseigner.</div>
+                </div>
+              </div>
 
-            <!-- Destination Workspace -->
-            <div>
-              <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:6px;">Dossier de travail cible</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                ${state.workspaces.map(ws => `
-                  <div onclick="window.importSetWs('${ws.path.replace(/\\/g, '\\\\')}')"
-                    style="
-                      cursor:pointer; background:var(--surf);
-                      border:1px solid ${targetWs === ws.path ? 'var(--grn)' : 'var(--bd)'};
-                      border-radius:8px; padding:10px 12px;
-                    "
-                  >
-                    <div style="font-size:12px;font-weight:600;color:var(--tx)">${ws.name}</div>
-                    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);">${ws.path}</div>
+              <!-- All-in-One WP Migration .wpress -->
+              <div onclick="window.importSetFormat('wpress')"
+                style="
+                  display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; cursor: pointer;
+                  background: ${selectedFormat === 'wpress' ? '#0f1f18' : '#0e1626'};
+                  border: 1px solid ${selectedFormat === 'wpress' ? '#84cc16' : '#1e293b'};
+                  transition: all .15s ease;
+                "
+              >
+                <div style="
+                  width: 18px; height: 18px; border-radius: 50%; border: 2px solid ${selectedFormat === 'wpress' ? '#84cc16' : '#475569'};
+                  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+                ">
+                  ${selectedFormat === 'wpress' ? '<div style="width: 8px; height: 8px; border-radius: 50%; background: #84cc16;"></div>' : ''}
+                </div>
+                <div style="flex: 1;">
+                  <div style="font-size: 13px; font-weight: 700; color: #ffffff;">All-in-One WP Migration .wpress</div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 1px;">Archive d'exportation All-in-One WP Migration. Décodage natif immédiat.</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- 2. Fichier source & Zone Drag and Drop -->
+          <div>
+            <div style="font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">Fichier source</div>
+            <div id="import-file-dropzone"
+              style="
+                display: flex; align-items: center; justify-content: space-between; gap: 12px;
+                background: #0e1626; border: 1px solid #1e293b; border-radius: 10px; padding: 6px 6px 6px 16px;
+                transition: all .2s;
+              "
+              ondragover="event.preventDefault(); this.style.borderColor='#84cc16'; this.style.background='#132332';"
+              ondragleave="this.style.borderColor='#1e293b'; this.style.background='#0e1626';"
+              ondrop="window.importHandleDrop(event)"
+            >
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: ${selectedFilePath ? '#38bdf8' : '#475569'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;" title="${selectedFilePath || ''}">
+                ${selectedFilePath || 'Aucun fichier sélectionné (glissez votre fichier ici)'}
+              </div>
+              <button class="btn btn-sm" onclick="window.importPickFile()"
+                style="background: #1e293b; color: #f8fafc; font-weight: 600; border: 1px solid #334155; padding: 7px 18px; border-radius: 8px; flex-shrink: 0; cursor: pointer;">
+                Parcourir
+              </button>
+            </div>
+            ${errorMessage ? `
+              <div style="color: #ef4444; font-size: 11px; margin-top: 6px; font-weight: 500;">
+                ⚠️ ${errorMessage}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- 3. Nom du projet -->
+          <div>
+            <div style="font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">Nom du projet</div>
+            <input id="import-site-name" class="input font-mono"
+              value="${siteName}"
+              placeholder="nom du dossier cible"
+              style="background: #0e1626; border: 1px solid #1e293b; border-radius: 10px; padding: 10px 14px; width: 100%; color: #f8fafc; font-size: 13px;"
+              oninput="window.importUpdateSiteName(this.value)"
+            />
+          </div>
+
+          <!-- 4. Espace de destination -->
+          <div>
+            <div style="font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">Espace de destination</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              ${state.workspaces.map(ws => `
+                <div onclick="window.importSetWs('${ws.path.replace(/\\/g, '\\\\')}')"
+                  style="
+                    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; cursor: pointer;
+                    background: #0e1626; border: 1px solid ${targetWs === ws.path ? '#84cc16' : '#1e293b'};
+                    transition: border-color .15s;
+                  "
+                >
+                  <span style="width: 8px; height: 8px; border-radius: 2px; background: ${ws.color || '#38bdf8'}; flex-shrink: 0;"></span>
+                  <div style="min-width: 0; flex: 1;">
+                    <div class="truncate" style="font-size: 13px; font-weight: 700; color: #ffffff;">${ws.name}</div>
+                    <div class="truncate font-mono" style="font-size: 11px; color: #64748b; margin-top: 1px;">${ws.path}</div>
                   </div>
-                `).join('')}
-              </div>
-              <div class="font-mono" style="font-size:11px;color:var(--tx3);margin-top:6px;">
-                → ${targetWs}\\${siteName}
+                </div>
+              `).join('')}
+            </div>
+            <div class="font-mono truncate" style="font-size: 11px; color: #475569; margin-top: 6px;">
+              ${previewPath}
+            </div>
+          </div>
+
+          <!-- 5. Ports du site importé -->
+          <div style="background: #0e1626; border: 1px solid #1e293b; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="font-size: 13px; font-weight: 700; color: #ffffff;">Ports du site importé</div>
+            
+            <!-- HTTP Port -->
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <div style="width: 70px; font-size: 12px; font-weight: 700; color: #94a3b8;">HTTP</div>
+              <input type="number" id="import-port-http" value="${httpPort}"
+                class="font-mono"
+                style="
+                  width: 90px; padding: 6px 10px; background: #0c121d; color: #ffffff; font-weight: 700; font-size: 13px;
+                  border: 1px solid ${isHttpTaken ? '#f59e0b' : '#334155'}; border-radius: 6px; text-align: center;
+                "
+                oninput="window.importUpdateHttpPort(this.value)"
+              />
+              <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+                ${isHttpTaken ? `
+                  <span style="font-size: 11px; font-weight: 600; color: #f59e0b;">Port d'origine déjà pris ici.</span>
+                  <button class="btn btn-sm" onclick="window.importUseSuggestedHttp()"
+                    style="background: #1e293b; color: #f8fafc; font-size: 11px; font-weight: 600; border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
+                    Utiliser ${suggestedHttp}
+                  </button>
+                ` : `
+                  <span style="font-size: 11px; color: #22c55e; font-weight: 600;">✓ Port disponible</span>
+                `}
               </div>
             </div>
 
-            <!-- Port HTTP -->
-            <div>
-              <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:6px;">Port HTTP local</div>
-              <input id="import-site-port" type="number" class="input input-mono" style="width:140px;" value="${targetPort}" />
+            <!-- MariaDB Port -->
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <div style="width: 70px; font-size: 12px; font-weight: 700; color: #94a3b8;">MariaDB</div>
+              <input type="number" id="import-port-db" value="${dbPort}"
+                class="font-mono"
+                style="
+                  width: 90px; padding: 6px 10px; background: #0c121d; color: #ffffff; font-weight: 700; font-size: 13px;
+                  border: 1px solid ${isDbTaken ? '#f59e0b' : '#334155'}; border-radius: 6px; text-align: center;
+                "
+                oninput="window.importUpdateDbPort(this.value)"
+              />
+              <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+                ${isDbTaken ? `
+                  <span style="font-size: 11px; font-weight: 600; color: #f59e0b;">Port d'origine déjà pris ici.</span>
+                  <button class="btn btn-sm" onclick="window.importUseSuggestedDb()"
+                    style="background: #1e293b; color: #f8fafc; font-size: 11px; font-weight: 600; border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
+                    Utiliser ${suggestedDb}
+                  </button>
+                ` : `
+                  <span style="font-size: 11px; color: #22c55e; font-weight: 600;">✓ Port disponible</span>
+                `}
+              </div>
             </div>
-          `}
+
+          </div>
+
+          ${isDeploying ? `
+            <div style="background: #0f1f18; border: 1px solid #14532d; border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px;">
+              <span class="animate-spin" style="display:inline-block; font-size: 18px;">🔄</span>
+              <div style="font-size: 13px; font-weight: 600; color: #84cc16;">
+                ${deployStatus || 'Déploiement en cours…'}
+              </div>
+            </div>
+          ` : ''}
+
         </div>
 
-        <!-- Footer -->
-        <div class="modal-footer">
-          <div style="font-size:12px;color:var(--tx3);flex:1;">Restauration complète BDD + Fichiers</div>
-          <button class="btn btn-ghost" onclick="window.modalClose()">Annuler</button>
-          <button id="import-deploy-btn" class="btn btn-primary" ${!manifest || isDeploying ? 'disabled' : ''} onclick="window.importExecute()">
-            ${isDeploying ? 'Déploiement en cours…' : '🚀 Déployer le site'}
-          </button>
+        <!-- Pied de page -->
+        <div style="padding: 16px 28px; background: #090e17; border-top: 1px solid #182234; display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 12px; color: #64748b;">
+            ${!selectedFilePath ? 'Choisissez d\'abord une archive.' : isDeploying ? 'Importation en cours…' : 'Archive prête à être importée.'}
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <button class="btn btn-sm" onclick="window.importModalClose()"
+              style="background: transparent; color: #94a3b8; font-weight: 600; padding: 8px 18px; border: none; cursor: pointer;">
+              Annuler
+            </button>
+            <button class="btn btn-sm"
+              style="
+                background: ${isReady ? '#84cc16' : '#1e293b'};
+                color: ${isReady ? '#0b0f17' : '#475569'};
+                font-weight: 700; padding: 8px 22px; border-radius: 8px; border: none;
+                cursor: ${isReady ? 'pointer' : 'not-allowed'};
+                transition: all .15s ease;
+              "
+              ${!isReady ? 'disabled' : ''}
+              onclick="window.importLaunch()"
+            >
+              ${isDeploying ? 'Importation…' : 'Lancer l\'importation'}
+            </button>
+          </div>
         </div>
+
       </div>
     `
+  }
 
-    const nameInput = document.getElementById('import-site-name')
-    if (nameInput) {
-      nameInput.addEventListener('input', (e) => { siteName = e.target.value })
-    }
-    const portInput = document.getElementById('import-site-port')
-    if (portInput) {
-      portInput.addEventListener('input', (e) => { targetPort = parseInt(e.target.value, 10) || 8080 })
-    }
+  // Fonctions globales pour les handlers HTML
+  window.importModalClose = () => {
+    modalOverlay.remove()
+  }
+
+  window.importSetFormat = (fmt) => {
+    selectedFormat = fmt
+    render()
+  }
+
+  window.importSetWs = (wsPath) => {
+    targetWs = wsPath
+    render()
+  }
+
+  window.importUpdateSiteName = (val) => {
+    siteName = val
+    render()
+  }
+
+  window.importUpdateHttpPort = (val) => {
+    httpPort = parseInt(val, 10) || 8082
+    isHttpTaken = false
+    render()
+  }
+
+  window.importUpdateDbPort = (val) => {
+    dbPort = parseInt(val, 10) || 3306
+    isDbTaken = false
+    render()
+  }
+
+  window.importUseSuggestedHttp = () => {
+    httpPort = suggestedHttp
+    isHttpTaken = false
+    render()
+  }
+
+  window.importUseSuggestedDb = () => {
+    dbPort = suggestedDb
+    isDbTaken = false
+    render()
   }
 
   window.importPickFile = async () => {
     try {
       const selected = await open({
         multiple: false,
-        filters: [{ name: 'Archives WoodPress', extensions: ['azf', 'zip'] }]
+        filters: [
+          { name: 'Archives WordPress (.azf, .wpress, .zip)', extensions: ['azf', 'wpress', 'zip'] },
+          { name: 'Paquet WoodPress (*.azf)', extensions: ['azf'] },
+          { name: 'All-in-One WP Migration (*.wpress)', extensions: ['wpress'] },
+          { name: 'Archive ZIP (*.zip)', extensions: ['zip'] },
+        ]
       })
-
       if (selected) {
-        selectedFilePath = selected
-        // Inspecter l'archive via le backend Rust
-        manifest = await invoke('inspect_azf', { archivePath: selected })
-        siteName = (manifest.projectName || manifest.siteName || 'imported-site')
-          .toLowerCase()
-          .replace(/[^a-z0-9-_]/g, '-')
-        render()
+        handleFileSelect(selected)
       }
     } catch (e) {
-      alert("Erreur lors de l'inspection de l'archive : " + e)
+      console.warn('Erreur ouverture sélecteur de fichier :', e)
     }
   }
 
-  window.importResetFile = () => { manifest = null; selectedFilePath = null; render() }
-  window.importSetWs = (p) => { targetWs = p; render() }
-  window.importExecute = async () => {
-    if (!selectedFilePath || !manifest || !siteName.trim()) return
+  window.importHandleDrop = (e) => {
+    e.preventDefault()
+    const dt = e.dataTransfer
+    if (dt && dt.files && dt.files.length > 0) {
+      const file = dt.files[0]
+      if (file && file.path) {
+        handleFileSelect(file.path)
+      }
+    }
+  }
+
+  window.importLaunch = async () => {
+    if (!selectedFilePath || !siteName.trim() || isDeploying) return
 
     isDeploying = true
+    deployStatus = '1/4 Décompression et lecture de l\'archive…'
     render()
 
     try {
-      const newSite = await invoke('import_azf', {
+      deployStatus = '2/4 Création de l\'environnement Docker…'
+      render()
+
+      await invoke('import_azf', {
         params: {
           archivePath: selectedFilePath,
           workspacePath: targetWs,
           siteName: siteName.trim(),
-          httpPort: targetPort,
+          httpPort: httpPort,
+          dbPort: dbPort,
         }
       })
 
-      state.sites.unshift(newSite)
-      modalOverlay.remove()
-      navigate('atelier')
-    } catch (e) {
-      isDeploying = false
+      deployStatus = '3/4 Démarrage des conteneurs et import SQL…'
       render()
-      alert("Erreur lors de l'importation : " + e)
+
+      // Actualiser les workspaces pour afficher le nouveau site immédiatement
+      if (window.wpScanWorkspaces) {
+        await window.wpScanWorkspaces()
+      }
+
+      deployStatus = '4/4 Importation terminée avec succès !'
+      render()
+
+      setTimeout(() => {
+        window.importModalClose()
+      }, 1000)
+
+    } catch (err) {
+      console.error('Échec importation archive :', err)
+      isDeploying = false
+      errorMessage = typeof err === 'string' ? err : 'Erreur lors du déploiement Docker'
+      render()
     }
   }
 
   render()
-  document.body.appendChild(modalOverlay)
 }
+
+// Exposer globalement
+window.wpOpenImportModal = showImportModal

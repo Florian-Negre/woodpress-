@@ -118,15 +118,17 @@ export function renderAtelier(el) {
       </div>
     </div>
 
-    <!-- Contenu des sites -->
-    <div style="flex:1;overflow:auto;padding:24px;">
+    <!-- Contenu principal : Grille ou Liste -->
+    <div style="flex:1;overflow-y:auto;padding:24px;">
       ${state.workspaces.length === 0 ? `
-        <!-- Premier lancement : aucun dossier de travail declare -->
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:14px;color:var(--tx3);text-align:center;">
-          <span style="font-size:40px">📁</span>
-          <div style="font-size:16px;font-weight:600;color:var(--tx)">Bienvenue dans WoodPress</div>
-          <div style="font-size:13px;max-width:420px;line-height:1.6;">
-            Indiquez le dossier dans lequel vous rangez vos projets WordPress.
+        <!-- État d'accueil : aucun workspace configuré -->
+        <div class="card" style="max-width:540px;margin:40px auto;text-align:center;padding:36px;">
+          <div style="font-size:42px;margin-bottom:12px;">🪵</div>
+          <div style="font-family:'Poppins',sans-serif;font-size:18px;font-weight:700;color:var(--tx);margin-bottom:8px;">
+            Bienvenue dans WoodPress
+          </div>
+          <div style="font-size:13px;color:var(--tx3);line-height:1.6;margin-bottom:20px;">
+            Pour commencer, sélectionnez le dossier sur votre disque qui contient vos projets WordPress.
             WoodPress y détectera automatiquement les sites existants, sous Docker comme en local.
           </div>
           <button class="btn btn-primary" onclick="window.wpOpenAddWorkspace()">Choisir mon dossier de travail</button>
@@ -143,20 +145,23 @@ export function renderAtelier(el) {
         <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;">
           ${filtered.map(site => renderSiteCard(site, currentSelected && currentSelected.path === site.path)).join('')}
 
-          <!-- 5ème carte : Nouveau site en pointillés -->
-          <div onclick="window.wpOpenNew()"
+          <!-- 5ème carte : Nouveau site / Import en pointillés avec Drag & Drop -->
+          <div onclick="window.wpOpenImport()"
             id="dashed-new-site-card"
             style="
               cursor:pointer; border:1px dashed var(--bds); border-radius:12px; padding:20px;
               display:flex; flex-direction:column; align-items:center; justify-content:center;
-              gap:10px; min-height:160px; color:var(--tx3); background:transparent; transition:border-color .15s, color .15s;
+              gap:10px; min-height:160px; color:var(--tx3); background:transparent; transition:all .15s;
             "
+            ondragover="event.preventDefault(); this.style.borderColor='#84cc16'; this.style.background='rgba(132,204,22,0.06)';"
+            ondragleave="this.style.borderColor='var(--bds)'; this.style.background='transparent';"
+            ondrop="window.wpHandleAtelierCardDrop(event)"
             onmouseenter="this.style.borderColor='var(--cy)'; this.style.color='var(--tx)'"
             onmouseleave="this.style.borderColor='var(--bds)'; this.style.color='var(--tx3)'"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
-            <div style="font-size:13px;font-weight:600">Nouveau site</div>
-            <div style="font-size:11px;text-align:center;line-height:1.5;color:var(--tx3)">ou déposez un fichier<br /><span style="font-family:'JetBrains Mono',monospace">.azf</span> ici</div>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4v10M8 10l4 4 4-4M4 18h16" /></svg>
+            <div style="font-size:13px;font-weight:700;color:var(--tx)">Importer ou créer un site</div>
+            <div style="font-size:11px;text-align:center;line-height:1.5;color:var(--tx3)">Déposez une archive <span style="font-family:'JetBrains Mono',monospace;color:#84cc16;">.azf</span>, <span style="font-family:'JetBrains Mono',monospace;color:#38bdf8;">.wpress</span> ou <span style="font-family:'JetBrains Mono',monospace;">.zip</span></div>
           </div>
         </div>
       ` : `
@@ -435,6 +440,21 @@ export function renderAtelier(el) {
       }
     } catch (e) {
       alert(`Erreur lors de l'exportation .AZF : ${e}`)
+    }
+  }
+
+  window.wpOpenImport = (filePath = null) => {
+    showImportModal(filePath)
+  }
+
+  window.wpHandleAtelierCardDrop = (e) => {
+    e.preventDefault()
+    const dt = e.dataTransfer
+    if (dt && dt.files && dt.files.length > 0) {
+      const file = dt.files[0]
+      if (file && file.path) {
+        showImportModal(file.path)
+      }
     }
   }
 
