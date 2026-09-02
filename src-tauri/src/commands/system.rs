@@ -228,29 +228,40 @@ pub async fn open_in_ide(ide_command: String, path: String) -> Result<(), String
     Ok(())
 }
 
-/// Ouvre une URL dans le navigateur par défaut sans console
+/// Ouvre une URL dans le navigateur par défaut ou un dossier dans l'explorateur
 #[tauri::command]
 pub async fn open_url(url: String) -> Result<(), String> {
+    let url_clean = url.trim();
+    if url_clean.is_empty() {
+        return Ok(());
+    }
+
     #[cfg(target_os = "windows")]
     {
-        // Une URL contenant « & » serait coupee par cmd si elle n'etait pas entre guillemets
-        let quoted = format!("start \"\" \"{}\"", url);
-        new_command("cmd")
-            .args(["/C", &quoted])
-            .spawn()
-            .map_err(|e| format!("Impossible d'ouvrir l'URL : {}", e))?;
+        if url_clean.starts_with("http://") || url_clean.starts_with("https://") {
+            new_command("rundll32")
+                .args(["url.dll,FileProtocolHandler", url_clean])
+                .spawn()
+                .map_err(|e| format!("Impossible d'ouvrir l'URL : {}", e))?;
+        } else {
+            // C'est un dossier ou fichier local : ouvrir avec l'Explorateur Windows
+            new_command("explorer.exe")
+                .arg(url_clean)
+                .spawn()
+                .map_err(|e| format!("Impossible d'ouvrir le dossier : {}", e))?;
+        }
     }
     #[cfg(target_os = "macos")]
     {
         new_command("open")
-            .arg(&url)
+            .arg(url_clean)
             .spawn()
             .map_err(|e| format!("Impossible d'ouvrir l'URL : {}", e))?;
     }
     #[cfg(target_os = "linux")]
     {
         new_command("xdg-open")
-            .arg(&url)
+            .arg(url_clean)
             .spawn()
             .map_err(|e| format!("Impossible d'ouvrir l'URL : {}", e))?;
     }

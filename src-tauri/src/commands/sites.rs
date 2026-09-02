@@ -15,6 +15,8 @@ pub struct SiteInfo {
     pub status: String, // "online" | "stopped" | "error" | "starting" | "uncontainerized"
     pub http_port: Option<u16>,
     pub custom_domain: Option<String>,
+    pub primary_url: Option<String>,
+    pub admin_url: Option<String>,
     pub wp_version: Option<String>,
     pub php_version: Option<String>,
     pub has_update: bool,
@@ -527,6 +529,8 @@ pub async fn update_site_stack(
         status: "online".to_string(),
         http_port,
         custom_domain: Some(format!("{}.local", site_name)),
+        primary_url: http_port.map(|p| format!("http://localhost:{}", p)),
+        admin_url: http_port.map(|p| format!("http://localhost:{}/wp-admin", p)),
         wp_version: Some(wp_ver),
         php_version: php_ver,
         has_update: false,
@@ -757,6 +761,8 @@ pub async fn containerize_legacy_site(
         status: "online".to_string(),
         http_port: Some(http_port),
         custom_domain: Some(format!("{}.local", site_name.to_lowercase())),
+        primary_url: Some(format!("http://localhost:{}", http_port)),
+        admin_url: Some(format!("http://localhost:{}/wp-admin", http_port)),
         wp_version: Some("6.7.2".to_string()),
         php_version: Some(format!("PHP {}", clean_php)),
         has_update: false,
@@ -1092,6 +1098,7 @@ pub fn scan_directory_recursive(
                             matches_name && is_up
                         });
 
+                        let (primary_url, admin_url) = detect_site_urls(&content, &name, http_port);
                         let custom_domain = format!("{}.local", name.to_lowercase());
                         let compose_dir = compose_file.parent().unwrap_or(current).to_string_lossy().to_string();
 
@@ -1103,6 +1110,8 @@ pub fn scan_directory_recursive(
                             status: if is_running { "online".to_string() } else { "stopped".to_string() },
                             http_port,
                             custom_domain: Some(custom_domain),
+                            primary_url: Some(primary_url),
+                            admin_url: Some(admin_url),
                             wp_version: Some(wp_version),
                             php_version,
                             has_update: false,
@@ -1142,6 +1151,9 @@ pub fn scan_directory_recursive(
                         "Site Local Standalone"
                     };
 
+                    let legacy_url = format!("http://localhost/{}", name);
+                    let legacy_admin = format!("http://localhost/{}/wp-admin", name);
+
                     sites.push(SiteInfo {
                         name: name.clone(),
                         path: current.to_string_lossy().to_string(),
@@ -1150,6 +1162,8 @@ pub fn scan_directory_recursive(
                         status: "uncontainerized".to_string(),
                         http_port: None,
                         custom_domain: Some(format!("{}.local", name.to_lowercase())),
+                        primary_url: Some(legacy_url),
+                        admin_url: Some(legacy_admin),
                         wp_version: Some(wp_version),
                         php_version: Some("PHP 8.4".to_string()),
                         has_update: false,
@@ -1213,6 +1227,50 @@ fn get_docker_active_containers() -> Vec<DockerContainerSummary> {
         }
     }
     list
+}
+
+pub fn detect_site_urls(compose_content: &str, site_name: &str, http_port: Option<u16>) -> (String, String) {
+    let lower = compose_content.to_lowercase();
+    let name_lower = site_name.to_lowercase();
+
+    // 1. Détecter un domaine personnalisé explicite dans le compose (ex: vk-interiordesign.local ou VIRTUAL_HOST)
+    let mut custom_domain = None;
+    for line in compose_content.lines() {
+        let trimmed = line.trim();
+        if trimmed.contains(".local") {
+            for word in trimmed.split_whitespace() {
+                let clean_word = word.trim_matches(|c: char| c == '"' || c == '\'' || c == '#' || c == ',' || c == '(' || c == ')');
+                if clean_word.ends_with(".local") {
+                    let d = clean_word.trim_start_matches("http://").trim_start_matches("https://");
+                    if !d.is_empty() {
+                        custom_domain = Some(d.to_string());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let has_ssl = compose_content.contains("443:443") || compose_content.contains("default-ssl") || lower.contains("https://");
+
+    let primary_url = if let Some(ref dom) = custom_domain {
+        let proto = if has_ssl { "https" } else { "http" };
+        format!("{}://{}", proto, dom)
+    } else if has_ssl {
+        format!("https://{}.local", name_lower)
+    } else if let Some(port) = http_port {
+        if port == 80 {
+            format!("http://localhost")
+        } else {
+            format!("http://localhost:{}", port)
+        }
+    } else {
+        format!("http://{}.local", name_lower)
+    };
+
+    let admin_url = format!("{}/wp-admin", primary_url.trim_end_matches('/'));
+
+    (primary_url, admin_url)
 }
 
 pub fn detect_http_port(compose_content: &str) -> Option<u16> {
@@ -1301,6 +1359,7 @@ pub async fn get_site_details(site_path: String, compose_dir: String) -> Result<
         c.name.to_lowercase().contains(&name.to_lowercase()) && (c.status.to_lowercase().starts_with("up") || c.state == "running")
     });
 
+    let (primary_url, admin_url) = detect_site_urls(&compose_content, &name, http_port);
     let site_info = SiteInfo {
         name: name.clone(),
         path: site_path.clone(),
@@ -1309,6 +1368,8 @@ pub async fn get_site_details(site_path: String, compose_dir: String) -> Result<
         status: if is_running { "online".to_string() } else { "stopped".to_string() },
         http_port,
         custom_domain: Some(format!("{}.local", name.to_lowercase())),
+        primary_url: Some(primary_url),
+        admin_url: Some(admin_url),
         wp_version: Some(wp_version),
         php_version,
         has_update: false,
@@ -1572,6 +1633,8 @@ pub async fn clone_site(
         status: "stopped".to_string(),
         http_port: Some(new_port),
         custom_domain: Some(format!("{}.local", new_name.to_lowercase())),
+        primary_url: Some(format!("http://localhost:{}", new_port)),
+        admin_url: Some(format!("http://localhost:{}/wp-admin", new_port)),
         wp_version: Some("7.0.4".to_string()),
         php_version: Some("PHP 8.4".to_string()),
         has_update: false,
@@ -1811,8 +1874,9 @@ pub async fn create_site(params: CreateSiteParams) -> Result<SiteInfo, String> {
         workspace: params.workspace_path,
         status: status.to_string(),
         http_port: Some(params.http_port),
-        // Aucun domaine tant que set_site_domain n'a pas ecrit le fichier hosts
         custom_domain: None,
+        primary_url: Some(format!("http://localhost:{}", params.http_port)),
+        admin_url: Some(format!("http://localhost:{}/wp-admin", params.http_port)),
         wp_version: Some(params.wp_version),
         php_version: Some(format!("PHP {}", params.php_version)),
         has_update: false,

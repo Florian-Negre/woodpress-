@@ -271,7 +271,7 @@ export function renderAtelier(el) {
         ${!currentSelected.is_legacy ? `
           <button class="btn btn-elev btn-sm"
             style="${!isSelectedOnline ? 'opacity:.45;pointer-events:none' : ''}"
-            onclick="window.wpOpenSiteAdmin(${currentSelected.http_port})">
+            onclick="window.wpOpenSiteAdmin('${currentSelected.path.replace(/\\/g, '\\\\')}')">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--cy)" stroke-width="1.8" stroke-linecap="round"><path d="M15 7h2a5 5 0 0 1 0 10h-2M9 17H7A5 5 0 0 1 7 7h2M8 12h8"/></svg>
             WP-Admin
           </button>
@@ -384,8 +384,18 @@ export function renderAtelier(el) {
     }
   }
 
-  window.wpOpenSiteAdmin = (port) => {
-    if (port) invoke('open_url', { url: `http://localhost:${port}/wp-admin` })
+  window.wpOpenSiteAdmin = (portOrPath) => {
+    if (typeof portOrPath === 'string') {
+      const site = state.sites.find(s => s.path === portOrPath)
+      if (site) {
+        const adminUrl = site.admin_url || (site.primary_url ? `${site.primary_url.replace(/\/+$/, '')}/wp-admin` : (site.http_port ? `http://localhost:${site.http_port}/wp-admin` : ''))
+        if (adminUrl) {
+          invoke('open_url', { url: adminUrl })
+          return
+        }
+      }
+    }
+    if (portOrPath) invoke('open_url', { url: `http://localhost:${portOrPath}/wp-admin` })
   }
 
   window.wpOpenPhpMyAdmin = (port) => {

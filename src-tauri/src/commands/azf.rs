@@ -421,6 +421,8 @@ pub async fn import_azf(params: ImportAzfParams) -> Result<SiteInfo, String> {
         status: "online".to_string(),
         http_port: Some(params.http_port),
         custom_domain: Some(format!("{}.local", params.site_name.to_lowercase())),
+        primary_url: Some(format!("http://localhost:{}", params.http_port)),
+        admin_url: Some(format!("http://localhost:{}/wp-admin", params.http_port)),
         wp_version: Some("7.0.4".to_string()),
         php_version: Some("PHP 8.4".to_string()),
         has_update: false,

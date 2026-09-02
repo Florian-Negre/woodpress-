@@ -62,14 +62,11 @@ export function renderSiteCard(site, isSelected) {
             ${site.name.slice(0, 2).toUpperCase()}
           </div>
           <div style="min-width: 0;">
-            <div class="truncate" style="font-family:'Poppins',sans-serif; font-size: 14px; font-weight: 600; color: var(--tx);">
+            <div class="truncate" style="font-family:'Poppins',sans-serif; font-size: 15px; font-weight: 700; color: #ffffff;">
               ${site.name}
             </div>
-            <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
-              <span style="width:6px; height:6px; border-radius:50%; background:${ws.color};"></span>
-              <span class="truncate" style="font-size: 11px; color: var(--tx3); font-weight: 500;">
-                ${ws.name}
-              </span>
+            <div style="font-family:'JetBrains Mono',monospace; font-size: 11px; color: var(--tx3); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${site.path}">
+              ${site.path}
             </div>
           </div>
         </div>
@@ -97,6 +94,11 @@ export function renderSiteCard(site, isSelected) {
           ${site.http_port ? `
             <span class="font-mono" style="font-size: 12px; color: var(--cy); font-weight: 600;">
               :${site.http_port}
+            </span>
+          ` : ''}
+          ${site.primary_url && site.primary_url.includes('.local') ? `
+            <span style="font-family:'JetBrains Mono',monospace; font-size: 11px; color: var(--tx3);">
+              ${site.primary_url.replace(/^https?:\/\//, '')}
             </span>
           ` : ''}
         </div>
@@ -144,7 +146,7 @@ export function renderSiteCard(site, isSelected) {
           <button class="btn btn-elev btn-sm" style="flex:1;" onclick="window.wpStopSite('${site.path.replace(/\\/g, '\\\\')}')">
             ⏹️ Arrêter
           </button>
-          <button class="btn btn-elev btn-sm" style="flex:1;" onclick="window.wpOpenSiteUrl('${site.http_port}')">
+          <button class="btn btn-elev btn-sm" style="flex:1;" onclick="window.wpOpenSiteTarget('${site.path.replace(/\\/g, '\\\\')}')">
             🌐 Ouvrir
           </button>
         ` : `
@@ -164,8 +166,13 @@ export function renderSiteCard(site, isSelected) {
   `
 }
 
-window.wpOpenSiteUrl = (port) => {
-  if (port) invoke('open_url', { url: `http://localhost:${port}` })
+window.wpOpenSiteTarget = (path) => {
+  const site = state.sites.find(s => s.path === path)
+  if (!site) return
+  const targetUrl = site.primary_url || (site.http_port ? `http://localhost:${site.http_port}` : (site.custom_domain ? `http://${site.custom_domain}` : ''))
+  if (targetUrl) {
+    invoke('open_url', { url: targetUrl })
+  }
 }
 
 window.wpOpenStackUpdate = (path) => {
@@ -225,7 +232,11 @@ window.wpToggleCardMenu = (path, event) => {
     { icon: '📁', label: 'Ouvrir le dossier',     handler: () => invoke('open_url', { url: path }) },
     { icon: '💻', label: 'Ouvrir dans IDE',     handler: () => invoke('open_in_ide', { ideCommand: getConfig().ide || 'code', path }) },
   ] : [
-    { icon: '🔑', label: 'WP-Admin',       handler: () => invoke('open_url', { url: `http://localhost:${port}/wp-admin` }) },
+    { icon: '🔑', label: 'WP-Admin', handler: () => {
+        const adminUrl = site.admin_url || (site.primary_url ? `${site.primary_url.replace(/\/+$/, '')}/wp-admin` : (port ? `http://localhost:${port}/wp-admin` : ''))
+        if (adminUrl) invoke('open_url', { url: adminUrl })
+      }
+    },
     { icon: '🗄️', label: 'PhpMyAdmin',     handler: () => invoke('open_url', { url: `http://localhost:${pmaPort}` }) },
     { icon: '✉️', label: 'Mailpit',        handler: () => invoke('open_url', { url: 'http://localhost:8025' }) },
     { icon: '🔍', label: 'Ouvrir l\'Établi', handler: () => window.wpOpenEtabliForSite(path) },
