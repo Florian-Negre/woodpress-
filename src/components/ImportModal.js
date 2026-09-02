@@ -13,7 +13,7 @@ export function showImportModal() {
   let selectedFilePath = null
   let manifest = null
   let siteName = ''
-  let targetWs = state.workspaces[0]?.path || 'G:\\Workspace'
+  let targetWs = state.workspaces[0]?.path || ''
   let targetPort = 8086
   let isDeploying = false
 

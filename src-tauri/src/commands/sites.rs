@@ -25,6 +25,7 @@ pub struct SiteInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateSiteParams {
     pub name: String,
     pub workspace_path: String,
@@ -1265,8 +1266,12 @@ pub async fn create_site(params: CreateSiteParams) -> Result<SiteInfo, String> {
     let db_name = params.db_name.unwrap_or_else(|| "wordpress".to_string());
     let db_user = params.db_user.unwrap_or_else(|| "wordpress".to_string());
     let db_pass = params.db_pass.unwrap_or_else(|| "wordpress".to_string());
-    let pma_port = params.http_port + 1000;
-    let mail_port = 8025;
+    // Ports attribues dynamiquement : un port Mailpit fixe empechait tout deuxieme site
+    // de demarrer, et un port phpMyAdmin calcule pouvait tomber sur un port deja pris.
+    let extra_ports = crate::commands::system::allocate_ports(params.http_port + 1, 65000, 2)
+        .map_err(|e| format!("Attribution des ports impossible : {}", e))?;
+    let pma_port = extra_ports[0];
+    let mail_port = extra_ports[1];
 
     let compose_content = format!(
         r#"services:
@@ -1336,19 +1341,39 @@ pub async fn create_site(params: CreateSiteParams) -> Result<SiteInfo, String> {
     let _ = fs::create_dir_all(&wp_dir);
 
     let clean_name = params.name.to_lowercase();
-    let _ = new_command("docker")
+    let up = new_command("docker")
         .args(["compose", "-p", &clean_name, "up", "-d"])
         .current_dir(&target_dir)
         .output();
+
+    // Le resultat du demarrage decide du statut : afficher « en ligne » un site qui n'a
+    // pas demarre laissait l'utilisateur chercher une panne inexistante.
+    let (status, start_error) = match up {
+        Ok(out) if out.status.success() => ("online", None),
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+            ("stopped", Some(explain_compose_error(&stderr)))
+        }
+        Err(e) => ("stopped", Some(format!("Docker est-il demarre ? ({})", e))),
+    };
+
+    if let Some(reason) = &start_error {
+        return Err(format!(
+            "Le dossier du site a bien ete cree dans {}, mais les conteneurs n'ont pas demarre : {}",
+            target_dir.display(),
+            reason
+        ));
+    }
 
     Ok(SiteInfo {
         name: params.name.clone(),
         path: target_dir.to_string_lossy().to_string(),
         compose_dir: target_dir.to_string_lossy().to_string(),
         workspace: params.workspace_path,
-        status: "online".to_string(),
+        status: status.to_string(),
         http_port: Some(params.http_port),
-        custom_domain: Some(format!("{}.local", params.name.to_lowercase())),
+        // Aucun domaine tant que set_site_domain n'a pas ecrit le fichier hosts
+        custom_domain: None,
         wp_version: Some(params.wp_version),
         php_version: Some(format!("PHP {}", params.php_version)),
         has_update: false,
@@ -1358,6 +1383,44 @@ pub async fn create_site(params: CreateSiteParams) -> Result<SiteInfo, String> {
         is_legacy: false,
         legacy_stack: None,
     })
+}
+
+
+/// Traduit le bavardage de Docker Compose en une phrase actionnable.
+pub fn explain_compose_error(stderr: &str) -> String {
+    let lower = stderr.to_lowercase();
+
+    if lower.contains("port is already allocated") || lower.contains("address already in use") {
+        // « Bind for 0.0.0.0:8085 failed: port is already allocated »
+        for token in stderr.split_whitespace() {
+            if let Some((_, port)) = token.rsplit_once(':') {
+                if port.trim_end_matches(|c: char| !c.is_ascii_digit()).parse::<u16>().is_ok() {
+                    return format!(
+                        "le port {} est deja pris par un autre conteneur. Choisissez-en un autre ou arretez le projet qui l'occupe.",
+                        port.trim_end_matches(|c: char| !c.is_ascii_digit())
+                    );
+                }
+            }
+        }
+        return "un des ports demandes est deja pris par un autre conteneur.".to_string();
+    }
+
+    if lower.contains("manifest unknown") || lower.contains("not found: manifest") {
+        return "l'image demandee n'existe pas sur Docker Hub : verifiez la combinaison version WordPress / version PHP.".to_string();
+    }
+
+    if lower.contains("cannot connect to the docker daemon") || lower.contains("docker daemon is not running") {
+        return "Docker Desktop n'est pas demarre.".to_string();
+    }
+
+    let line = stderr
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .last()
+        .unwrap_or("cause inconnue");
+
+    line.chars().take(200).collect()
 }
 
 // ── LARGE PANEL DE TESTS UNITAIRES (Validation Architecturale) ─────────────

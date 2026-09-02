@@ -1,16 +1,12 @@
 import { state, navigate } from '../app.js'
 import { invoke } from '@tauri-apps/api/core'
 import { showAddWorkspaceModal } from '../components/AddWorkspaceModal.js'
+import { getConfig, updateConfig, getConfigPath } from '../configStore.js'
 
 export function renderSettings(el) {
   const { theme, workspaces, ides } = state
-  const selectedIde = localStorage.getItem('wp-ide') || 'code'
-
-  const prefs = {
-    autoDocker: localStorage.getItem('wp-pref-autodocker') !== 'false',
-    autoCheckUpdates: localStorage.getItem('wp-pref-checkupdates') !== 'false',
-    securityAlerts: localStorage.getItem('wp-pref-security') !== 'false',
-  }
+  const selectedIde = getConfig().ide || 'code'
+  const prefs = getConfig().preferences
 
   el.innerHTML = `
     <div style="flex:1;overflow:auto;padding:24px 28px;display:flex;flex-direction:column;gap:16px;">
@@ -109,9 +105,9 @@ export function renderSettings(el) {
       <div class="card">
         <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--tx)">Préférences globales</div>
         ${[
-          { key: 'wp-pref-autodocker', label: 'Démarrer Docker automatiquement', hint: 'Lance Docker Desktop au démarrage si celui-ci est éteint.', on: prefs.autoDocker },
-          { key: 'wp-pref-checkupdates', label: 'Vérifier les versions WordPress au démarrage', hint: 'Consulte l\'API WordPress.org pour détecter les nouvelles versions.', on: prefs.autoCheckUpdates },
-          { key: 'wp-pref-security', label: 'Surveillance de sécurité CVE Watch', hint: 'Alertes en temps réel sur les vulnérabilités de plugins.', on: prefs.securityAlerts },
+          { key: 'autoDocker', label: 'Démarrer Docker automatiquement', hint: 'Lance Docker Desktop au démarrage si celui-ci est éteint.', on: prefs.autoDocker },
+          { key: 'autoCheckUpdates', label: 'Vérifier les versions WordPress au démarrage', hint: 'Consulte l\'API WordPress.org pour détecter les nouvelles versions.', on: prefs.autoCheckUpdates },
+          { key: 'securityAlerts', label: 'Surveillance de sécurité CVE Watch', hint: 'Alertes en temps réel sur les vulnérabilités de plugins.', on: prefs.securityAlerts },
         ].map((p, i) => `
           <div onclick="window.wpTogglePref('${p.key}')"
             style="cursor:pointer;display:flex;align-items:center;gap:14px;padding:13px 0;border-top:${i > 0 ? '1px solid var(--surf2)' : 'none'};">
@@ -130,12 +126,15 @@ export function renderSettings(el) {
       <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3);text-align:center;padding-bottom:8px;">
         WoodPress v2.0.0 — Atelier Codinflo · Plateforme native
       </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);text-align:center;padding-bottom:12px;word-break:break-all;">
+        Réglages enregistrés dans ${getConfigPath() || 'le dossier de configuration de votre session'}
+      </div>
     </div>
   `
 
   window.wpSetTheme = (t) => {
     state.theme = t
-    localStorage.setItem('wp-theme', t)
+    updateConfig({ theme: t }, { immediate: true })
     if (t === 'light') {
       document.documentElement.classList.add('light')
     } else {
@@ -145,13 +144,13 @@ export function renderSettings(el) {
   }
 
   window.wpSelectIde = (cmd) => {
-    localStorage.setItem('wp-ide', cmd)
+    updateConfig({ ide: cmd }, { immediate: true })
     renderSettings(el)
   }
 
   window.wpTogglePref = (key) => {
-    const current = localStorage.getItem(key) !== 'false'
-    localStorage.setItem(key, current ? 'false' : 'true')
+    const current = getConfig().preferences[key] !== false
+    updateConfig({ preferences: { [key]: !current } }, { immediate: true })
     renderSettings(el)
   }
 
@@ -159,7 +158,7 @@ export function renderSettings(el) {
 
   window.wpRemoveWorkspace = (idx) => {
     state.workspaces.splice(idx, 1)
-    localStorage.setItem('wp-workspaces', JSON.stringify(state.workspaces))
+    updateConfig({ workspaces: state.workspaces }, { immediate: true })
     if (window.wpScan) window.wpScan()
     renderSettings(el)
   }

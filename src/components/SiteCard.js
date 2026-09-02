@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { showPhpPatchNoteModal } from './PhpPatchNoteModal.js'
 import { showResolvePortModal } from './ResolvePortModal.js'
 import { showContainerizeModal } from './ContainerizeModal.js'
+import { getConfig } from '../configStore.js'
 
 export function renderSiteCard(site, isSelected) {
   const isLegacy = site.is_legacy
@@ -193,14 +194,14 @@ window.wpToggleCardMenu = (path, event) => {
   const actions = site.is_legacy ? [
     { icon: '⚡', label: 'Conteneuriser Docker', handler: () => showContainerizeModal(site) },
     { icon: '📁', label: 'Ouvrir le dossier',     handler: () => invoke('open_url', { url: path }) },
-    { icon: '💻', label: 'Ouvrir dans IDE',     handler: () => invoke('open_in_ide', { ideCommand: localStorage.getItem('wp-ide') || 'code', path }) },
+    { icon: '💻', label: 'Ouvrir dans IDE',     handler: () => invoke('open_in_ide', { ideCommand: getConfig().ide || 'code', path }) },
   ] : [
     { icon: '🔑', label: 'WP-Admin',       handler: () => invoke('open_url', { url: `http://localhost:${port}/wp-admin` }) },
     { icon: '🗄️', label: 'PhpMyAdmin',     handler: () => invoke('open_url', { url: `http://localhost:${pmaPort}` }) },
     { icon: '✉️', label: 'Mailpit',        handler: () => invoke('open_url', { url: 'http://localhost:8025' }) },
     { icon: '🔍', label: 'Ouvrir l\'Établi', handler: () => window.wpOpenEtabliForSite(path) },
     { icon: '🐘', label: 'Version PHP & Patch Note', handler: () => showPhpPatchNoteModal(site) },
-    { icon: '💻', label: 'Ouvrir dans IDE', handler: () => invoke('open_in_ide', { ideCommand: localStorage.getItem('wp-ide') || 'code', path }) },
+    { icon: '💻', label: 'Ouvrir dans IDE', handler: () => invoke('open_in_ide', { ideCommand: getConfig().ide || 'code', path }) },
     { icon: '📁', label: 'Ouvrir le dossier', handler: () => invoke('open_url', { url: path }) },
     { divider: true },
     { icon: '💾', label: 'Exporter .AZF',   handler: () => window.wpExportSite && window.wpExportSite(path) },

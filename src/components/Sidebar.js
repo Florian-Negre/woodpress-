@@ -83,7 +83,7 @@ export function renderSidebar(el) {
         ${workspaces.map(ws => {
           const isActive = activeWorkspace === ws.path
           return `
-            <div onclick="window.wpSetWorkspace('${ws.path}')"
+            <div onclick="window.wpSetWorkspace('${ws.path.replace(/\\/g, '\\\\')}')"
               style="
                 cursor:pointer; padding:8px 10px; border-radius:8px;
                 background: ${isActive ? 'var(--surf2)' : 'transparent'};

@@ -6,13 +6,24 @@ import { showPhpPatchNoteModal } from '../components/PhpPatchNoteModal.js'
 import { showResolvePortModal } from '../components/ResolvePortModal.js'
 import { invoke } from '@tauri-apps/api/core'
 import { save } from '@tauri-apps/plugin-dialog'
+import { getConfig } from '../configStore.js'
 
 export function renderAtelier(el) {
-  const currentWs = state.workspaces.find(w => w.path === state.currentWorkspace)
-  const isAll = state.currentWorkspace === 'all'
+  // Le dossier actif est porte par state.activeWorkspace, ecrit par la barre laterale.
+  // Cette vue lisait state.currentWorkspace, qui n'existe nulle part : la comparaison
+  // se faisait contre undefined et ecartait donc tous les sites.
+  // null (ou vide) signifie « tous les dossiers ».
+  const samePath = (a, b) =>
+    (a || '').replace(/[\\/]+$/, '').toLowerCase() === (b || '').replace(/[\\/]+$/, '').toLowerCase()
+
+  const activeWs = state.activeWorkspace
+  const isAll = !activeWs || activeWs === 'all'
+  const currentWs = state.workspaces.find(w => samePath(w.path, activeWs))
 
   const filtered = state.sites.filter(site => {
-    const matchWs = isAll || site.workspace === state.currentWorkspace
+    // Comparaison insensible a la casse : sous Windows, « G:\Workspace » saisi par
+    // l'utilisateur et le chemin renvoye par le scan peuvent differer de casse.
+    const matchWs = isAll || samePath(site.workspace, activeWs)
     const matchQ  = !state.query || site.name.toLowerCase().includes(state.query.toLowerCase())
     return matchWs && matchQ
   })
@@ -102,7 +113,18 @@ export function renderAtelier(el) {
 
     <!-- Contenu des sites -->
     <div style="flex:1;overflow:auto;padding:24px;">
-      ${filtered.length === 0 ? `
+      ${state.workspaces.length === 0 ? `
+        <!-- Premier lancement : aucun dossier de travail declare -->
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:14px;color:var(--tx3);text-align:center;">
+          <span style="font-size:40px">📁</span>
+          <div style="font-size:16px;font-weight:600;color:var(--tx)">Bienvenue dans WoodPress</div>
+          <div style="font-size:13px;max-width:420px;line-height:1.6;">
+            Indiquez le dossier dans lequel vous rangez vos projets WordPress.
+            WoodPress y détectera automatiquement les sites existants, sous Docker comme en local.
+          </div>
+          <button class="btn btn-primary" onclick="window.wpOpenAddWorkspace()">Choisir mon dossier de travail</button>
+        </div>
+      ` : filtered.length === 0 ? `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:240px;gap:12px;color:var(--tx3);">
           <span style="font-size:36px">🪵</span>
           <div style="font-size:15px;font-weight:600;color:var(--tx)">Aucun site trouvé</div>
@@ -274,10 +296,17 @@ export function renderAtelier(el) {
     ` : ''}
   `
 
-  // Recherche
+  // Recherche : le rendu reconstruit tout le HTML, donc le champ lui-meme.
+  // On restaure le focus et la position du curseur pour que la saisie reste continue.
   document.getElementById('wp-search')?.addEventListener('input', (e) => {
     state.query = e.target.value
+    const caret = e.target.selectionStart
     renderAtelier(el)
+    const again = document.getElementById('wp-search')
+    if (again) {
+      again.focus()
+      try { again.setSelectionRange(caret, caret) } catch {}
+    }
   })
 
   // Switcher Grille/Liste
@@ -351,7 +380,7 @@ export function renderAtelier(el) {
   }
 
   window.wpOpenInIde = (path) => {
-    invoke('open_in_ide', { ideCommand: localStorage.getItem('wp-ide') || 'code', path })
+    invoke('open_in_ide', { ideCommand: getConfig().ide || 'code', path })
   }
 
   window.wpOpenFolder = (path) => {

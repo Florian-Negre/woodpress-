@@ -10,7 +10,10 @@ use zip::{ZipArchive, ZipWriter};
 use super::docker::new_command;
 use super::sites::SiteInfo;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+// Les champs absents prennent leur valeur par defaut : une archive produite par une
+// version anterieure de WoodPress (format 1.0.0) reste importable.
+#[serde(default)]
 pub struct AzfManifest {
     #[serde(rename = "formatVersion")]
     pub format_version: String,
@@ -46,6 +49,7 @@ pub struct AzfManifest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ImportAzfParams {
     pub archive_path: String,
     pub workspace_path: String,
@@ -73,6 +77,11 @@ pub async fn inspect_azf(archive_path: String) -> Result<AzfManifest, String> {
 
     let manifest: AzfManifest = serde_json::from_str(&content)
         .map_err(|e| format!("Format de manifeste non reconnu : {}", e))?;
+
+    // Les champs manquants etant tolerés, la validite de l'archive se controle ici.
+    if manifest.signature != "CODINFLO_AZF_PROPRIETARY" {
+        return Err("Ce fichier n'est pas une archive WoodPress valide (signature absente ou incorrecte)".to_string());
+    }
 
     Ok(manifest)
 }

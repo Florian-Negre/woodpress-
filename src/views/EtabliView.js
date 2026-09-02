@@ -6,6 +6,13 @@ import { showAddUserModal } from '../components/AddUserModal.js'
 import { showResolvePortModal } from '../components/ResolvePortModal.js'
 import { showCustomDomainModal } from '../components/CustomDomainModal.js'
 
+// Ces ouvertures de modale sont declenchees par des attributs onclick, qui s'evaluent
+// dans le contexte global : un import ES ne suffit pas a les rendre joignables.
+window.showPhpPatchNoteModal = showPhpPatchNoteModal
+window.showAddUserModal = showAddUserModal
+window.showResolvePortModal = showResolvePortModal
+window.showCustomDomainModal = showCustomDomainModal
+
 let currentTab = 'overview'
 let siteDetails = null
 let siteContainers = []

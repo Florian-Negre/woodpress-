@@ -12,7 +12,7 @@ export function showNewSiteModal() {
   let step = 1
   let form = {
     name: 'mon-nouveau-site',
-    workspace: state.workspaces[0]?.path || 'G:\\Workspace',
+    workspace: state.workspaces[0]?.path || '',
     wpVersion: '7.1',
     phpVersion: '8.4',
     httpPort: 8085,

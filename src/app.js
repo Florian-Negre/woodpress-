@@ -1,29 +1,20 @@
 import { invoke } from '@tauri-apps/api/core'
+import { getConfig, updateConfig } from './configStore.js'
 import { renderSidebar } from './components/Sidebar.js'
 import { renderAtelier } from './views/AtelierView.js'
 import { renderDocker } from './views/DockerView.js'
 import { renderSettings } from './views/SettingsView.js'
 import { renderEtabli } from './views/EtabliView.js'
 
-// Chargement des workspaces configurés par l'utilisateur
+// Les espaces de travail proviennent du fichier de configuration de l'utilisateur.
 function loadInitialWorkspaces() {
-  try {
-    const saved = localStorage.getItem('wp-workspaces')
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
-    }
-  } catch {}
-  return [
-    { name: 'Workspace Pro', path: 'G:\\Workspace', color: '#38BDF8' },
-    { name: 'Learnspace',    path: 'E:\\E-Dev',     color: '#F59E0B' },
-  ]
+  return getConfig().workspaces || []
 }
 
 // ── État global de l'application ──────────────────────────────────────────
 export const state = {
   view: 'atelier',          // 'atelier' | 'etabli' | 'docker' | 'settings'
-  layout: 'grid',           // 'grid' | 'list'
+  layout: getConfig().layout || 'grid',   // 'grid' | 'list'
   sites: [],
   selectedSite: null,
   dockerStatus: { running: false, version: null, containers_count: 0 },
@@ -31,7 +22,7 @@ export const state = {
   activeWorkspace: null,
   ides: [],
   query: '',
-  theme: localStorage.getItem('wp-theme') || 'dark',
+  theme: getConfig().theme || 'dark',
   latestWpVersion: '6.7.2',
 }
 
@@ -70,6 +61,11 @@ export function navigate(view, data = {}) {
 // Exposer la navigation globalement pour tous les composants
 window.navigate = navigate
 window.wpNavigate = navigate
+
+// Les attributs onclick du HTML s'evaluent dans le contexte global, alors que tout le code
+// est en modules ES : sans ces expositions, chaque clic leve un ReferenceError silencieux.
+window.state = state
+window.invoke = invoke
 
 // Fermeture universelle des modales
 window.modalClose = () => {

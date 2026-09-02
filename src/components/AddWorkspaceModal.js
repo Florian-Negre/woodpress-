@@ -1,5 +1,7 @@
 import { state, navigate } from '../app.js'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
+import { updateConfig } from '../configStore.js'
 
 export function showAddWorkspaceModal() {
   const existing = document.getElementById('wp-add-ws-modal')
@@ -10,7 +12,7 @@ export function showAddWorkspaceModal() {
   modalOverlay.className = 'modal-overlay'
 
   let name = 'Mon Espace'
-  let path = 'G:\\Workspace'
+  let path = ''
   let color = '#38BDF8'
 
   const COLORS = ['#38BDF8', '#8BC34A', '#F59E0B', '#EC4899', '#A855F7', '#6366F1']
@@ -36,7 +38,8 @@ export function showAddWorkspaceModal() {
           <div>
             <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:6px;">Chemin sur votre disque</div>
             <div style="display:flex;gap:8px;">
-              <input id="ws-path-input" class="input font-mono" style="flex:1;" value="${path}" placeholder="G:\\Workspace ou /home/user/projects" />
+              <input id="ws-path-input" class="input font-mono" style="flex:1;" value="${path}" placeholder="Choisissez un dossier avec le bouton Parcourir" />
+              <button class="btn btn-elev" type="button" onclick="window.wsBrowseFolder()">Parcourir...</button>
             </div>
             <div style="font-size:11px;color:var(--tx3);margin-top:6px;">
               Tous les sous-dossiers contenant un fichier docker-compose ou WordPress seront détectés.
@@ -76,6 +79,24 @@ export function showAddWorkspaceModal() {
     if (pathIn) pathIn.addEventListener('input', (e) => { path = e.target.value })
   }
 
+  // Selection du dossier par le systeme : l'utilisateur choisit son emplacement,
+  // aucun chemin n'est suppose par l'application.
+  window.wsBrowseFolder = async () => {
+    try {
+      const chosen = await open({ directory: true, multiple: false, title: 'Choisir un dossier de travail' })
+      if (typeof chosen === 'string' && chosen) {
+        path = chosen
+        if (!name.trim() || name === 'Mon Espace') {
+          const parts = chosen.split(/[\/]/).filter(Boolean)
+          if (parts.length) name = parts[parts.length - 1]
+        }
+        render()
+      }
+    } catch (e) {
+      console.warn('Selection du dossier annulee ou impossible :', e)
+    }
+  }
+
   window.wsSetColor = (c) => { color = c; render() }
   window.wsCloseModal = () => modalOverlay.remove()
   window.wsSubmit = async () => {
@@ -90,7 +111,7 @@ export function showAddWorkspaceModal() {
     // Éviter les doublons
     if (!state.workspaces.some(w => w.path === newWs.path)) {
       state.workspaces.push(newWs)
-      localStorage.setItem('wp-workspaces', JSON.stringify(state.workspaces))
+      updateConfig({ workspaces: state.workspaces }, { immediate: true })
     }
 
     modalOverlay.remove()

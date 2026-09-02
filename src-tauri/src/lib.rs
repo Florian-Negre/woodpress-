@@ -1,9 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod commands;
+pub mod commands; // public : les tests d'integration verifient les vraies structures
 
-use commands::{azf, docker, sites, system};
+use commands::{azf, config, docker, sites, system};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -40,6 +40,9 @@ pub fn run() {
             system::detect_ides,
             system::open_in_ide,
             system::open_url,
+            config::load_app_config,
+            config::save_app_config,
+            config::get_config_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running WoodPress application");
