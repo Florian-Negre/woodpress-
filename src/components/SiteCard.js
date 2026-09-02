@@ -74,12 +74,10 @@ export function renderSiteCard(site, isSelected) {
           </div>
         </div>
 
-        <!-- Menu 3 points -->
-        <button class="btn btn-ghost btn-sm"
-          style="padding: 4px 6px; border-radius: 6px;"
-          onclick="window.wpToggleCardMenu('${site.path.replace(/\\/g, '\\\\')}', event)">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-        </button>
+        <!-- Badge statut en haut à droite -->
+        <div>
+          ${statusBadge}
+        </div>
       </div>
 
       <!-- Alerte de conflit de port HTTP si détecté -->
@@ -96,15 +94,13 @@ export function renderSiteCard(site, isSelected) {
       <!-- Métadonnées & Port -->
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--surf2); border-bottom: 1px solid var(--surf2);">
         <div style="display: flex; align-items: center; gap: 10px;">
-          ${statusBadge}
           ${site.http_port ? `
-            <span class="font-mono" style="font-size: 12px; color: var(--tx2); font-weight: 600;">
+            <span class="font-mono" style="font-size: 12px; color: var(--cy); font-weight: 600;">
               :${site.http_port}
             </span>
           ` : ''}
         </div>
 
-        <!-- Métadonnées & Port -->
         <div class="font-mono" style="font-size: 11px; color: var(--tx3); display: flex; align-items: center; gap: 6px;">
           <span>WP ${site.wp_version || '6.7.2'}</span>
           ${!isLegacy ? `
