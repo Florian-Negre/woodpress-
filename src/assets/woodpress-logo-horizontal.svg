@@ -1,0 +1,79 @@
+<?xml version="1.0"?><svg width="1060" height="260" viewBox="0 0 1060 260" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#243347"></stop>
+      <stop offset="100%" stop-color="#0f172a"></stop>
+    </linearGradient>
+    <radialGradient id="topGlow" cx="26%" cy="18%" r="65%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16"></stop>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"></stop>
+    </radialGradient>
+    <linearGradient id="woodGrad" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%" stop-color="#a3d84a"></stop>
+      <stop offset="55%" stop-color="#8BC34A"></stop>
+      <stop offset="100%" stop-color="#5a8f0f"></stop>
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7dd8fd"></stop>
+      <stop offset="55%" stop-color="#38bdf8"></stop>
+      <stop offset="100%" stop-color="#0369a1"></stop>
+    </linearGradient>
+    <linearGradient id="woodTextGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8BC34A"></stop>
+      <stop offset="100%" stop-color="#65a30d"></stop>
+    </linearGradient>
+    <linearGradient id="cyanTextGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"></stop>
+      <stop offset="100%" stop-color="#0369a1"></stop>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.35"></feDropShadow>
+    </filter>
+  </defs>
+
+  
+  <g transform="translate(18,18) scale(0.4297)">
+    <rect x="0" y="0" width="512" height="512" rx="118" ry="118" fill="url(#bgGrad)"></rect>
+    <rect x="0" y="0" width="512" height="512" rx="118" ry="118" fill="url(#topGlow)"></rect>
+    <rect x="1.5" y="1.5" width="509" height="509" rx="116.5" ry="116.5" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2.5"></rect>
+
+    <g filter="url(#softShadow)">
+      <path d="M150,196 L200,336 L256,244 L312,336 L362,196" fill="none" stroke="url(#woodGrad)" stroke-width="58" stroke-linecap="round" stroke-linejoin="round"></path>
+      <path d="M150,196 L200,336 L256,244 L312,336 L362,196" fill="none" stroke="#4d7c0f" stroke-width="58" stroke-linecap="round" stroke-linejoin="round" opacity="0.16" stroke-dasharray="1.5 13"></path>
+      <path d="M150,196 L200,336 L256,244 L312,336 L362,196" fill="none" stroke="#e3f4c8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity="0.30" transform="translate(-7,-7)"></path>
+      <g stroke="#3f6b0c" stroke-width="2.6" fill="none" opacity="0.55">
+        <circle cx="150" cy="196" r="22"></circle>
+        <circle cx="150" cy="196" r="13"></circle>
+        <circle cx="362" cy="196" r="22"></circle>
+        <circle cx="362" cy="196" r="13"></circle>
+      </g>
+      <circle cx="150" cy="196" r="5" fill="#3f6b0c" opacity="0.6"></circle>
+      <circle cx="362" cy="196" r="5" fill="#3f6b0c" opacity="0.6"></circle>
+
+      <rect x="194" y="150" width="56" height="56" rx="9" fill="url(#cyanGrad)" stroke="#0c4a6e" stroke-width="1.5"></rect>
+      <rect x="194" y="150" width="26" height="26" rx="6" fill="#ffffff" opacity="0.22"></rect>
+      <path d="M222,158 V192 M203,175 H241" stroke="#0c4a6e" stroke-width="2" stroke-linecap="round" opacity="0.35"></path>
+
+      <rect x="262" y="150" width="56" height="56" rx="9" fill="url(#cyanGrad)" stroke="#0c4a6e" stroke-width="1.5"></rect>
+      <rect x="262" y="150" width="26" height="26" rx="6" fill="#ffffff" opacity="0.22"></rect>
+      <path d="M290,158 V192 M271,175 H309" stroke="#0c4a6e" stroke-width="2" stroke-linecap="round" opacity="0.35"></path>
+
+      <rect x="228" y="90" width="56" height="56" rx="9" fill="url(#cyanGrad)" stroke="#0c4a6e" stroke-width="1.5"></rect>
+      <rect x="228" y="90" width="26" height="26" rx="6" fill="#ffffff" opacity="0.25"></rect>
+      <path d="M256,98 V132 M237,115 H275" stroke="#0c4a6e" stroke-width="2" stroke-linecap="round" opacity="0.35"></path>
+    </g>
+  </g>
+
+  
+  <text x="252" y="150" font-family="'Poppins','Segoe UI','Helvetica Neue',Arial,sans-serif" font-weight="800" font-size="86" letter-spacing="-1">
+    <tspan fill="#0f172a">Wood</tspan><tspan fill="url(#cyanTextGrad)">Press</tspan>
+  </text>
+
+  
+  <rect x="254" y="172" width="360" height="3" rx="1.5" fill="#8BC34A" opacity="0.55"></rect>
+
+  
+  <text x="255" y="204" font-family="'Poppins','Segoe UI','Helvetica Neue',Arial,sans-serif" font-weight="600" font-size="18" letter-spacing="2.2" fill="#64748b">
+    WORDPRESS &amp; DOCKER ORCHESTRATOR — ATELIER CODINFLO
+  </text>
+</svg>

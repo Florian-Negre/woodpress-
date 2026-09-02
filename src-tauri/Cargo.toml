@@ -1,0 +1,49 @@
+[package]
+name = "woodpress"
+version = "2.0.0"
+description = "Orchestrateur WordPress & Docker — Atelier Codinflo"
+authors = ["Florian Nègre <florian@codinflo.fr>"]
+license = "MIT"
+repository = "https://github.com/Florian-Negre/woodpress"
+edition = "2021"
+
+[package.metadata.bundle]
+name = "WoodPress"
+identifier = "fr.codinflo.woodpress"
+icon = ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"]
+
+
+[lib]
+name = "woodpress_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-process = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+walkdir = "2.5"
+chrono = "0.4"
+dirs = "6.0"
+md5 = "0.7"
+reqwest = { version = "0.12", features = ["json"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
